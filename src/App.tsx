@@ -206,9 +206,10 @@ const App: React.FC = () => {
                     {currentStatus.status}
                   </span>
                   <span className="text-[11px] font-bold text-slate-600 ml-1">
-                    {currentStatus.status === "Strong Buy" ||
-                    currentStatus.status === "Buy"
-                      ? "적극 매수 권장"
+                    {currentStatus.status === "Strong Buy"
+                      ? "분할 매수 권장"
+                      : currentStatus.status === "Buy"
+                      ? "매수 or 관망 권장"
                       : currentStatus.status === "Neutral"
                       ? "관망 및 보유 추천"
                       : "분할 매도/리스크 관리 권장"}
