@@ -382,8 +382,10 @@ interface SwingScenario {
   entryDate: string;
   exitDate: string;
   entryPrice: number;
-  exitPrice: number;
-  profit: number;
+  exitPrice: number; // Base Target (현실적 목표)
+  extensionPrice: number; // Extension Target (최대 목표)
+  profit: number; // Base Profit (%)
+  extensionProfit: number; // Extension Profit (%)
   description: string;
 }
 
@@ -710,8 +712,13 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const exitDay = getDayName(exit.isoDate);
           const duration = j - i;
 
+          const baseTarget = exit.callResistance * 0.99; // 현실적인 1차 목표가 (저항선의 99%)
+          const extensionTarget = exit.callResistance; // 2차 확장 목표가 (GEX Wall)
+
           const profit =
-            ((exit.callResistance - entry.putSupport) / entry.putSupport) * 100;
+            ((baseTarget - entry.putSupport) / entry.putSupport) * 100;
+          const extensionProfit =
+            ((extensionTarget - entry.putSupport) / entry.putSupport) * 100;
 
           // 수익률이 0보다 큰 경우만 시나리오에 추가
           if (profit > 0) {
@@ -719,8 +726,10 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
               entryDate: `${entry.date}(${entryDay})`,
               exitDate: `${exit.date}(${exitDay})`,
               entryPrice: entry.putSupport,
-              exitPrice: exit.callResistance,
+              exitPrice: baseTarget,
+              extensionPrice: extensionTarget,
               profit,
+              extensionProfit,
               description: `${duration}일 스윙: ${entryDay}요일 진입 → ${exitDay}요일 목표가 도달 시나리오`,
             });
           }

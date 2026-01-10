@@ -47,7 +47,9 @@ export interface SwingScenario {
   exitDate: string;
   entryPrice: number;
   exitPrice: number;
+  extensionPrice: number;
   profit: number;
+  extensionProfit: number;
   description: string;
 }
 

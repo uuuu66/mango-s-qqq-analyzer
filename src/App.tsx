@@ -149,7 +149,11 @@ const App: React.FC = () => {
       data.swingScenarios.forEach((s) => {
         text += `- ${s.entryDate} Buy ($${s.entryPrice.toFixed(2)}) -> ${
           s.exitDate
-        } Sell ($${s.exitPrice.toFixed(2)}) : +${s.profit.toFixed(2)}%\n`;
+        } Base Sell ($${s.exitPrice.toFixed(
+          2
+        )}) / Ext Sell ($${s.extensionPrice.toFixed(2)}) : +${s.profit.toFixed(
+          2
+        )}% / +${s.extensionProfit.toFixed(2)}%\n`;
       });
       text += `\n`;
     }
@@ -209,7 +213,7 @@ const App: React.FC = () => {
   const currentStatus = getCurrentStatus();
 
   if (loading) {
-  return (
+    return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-50 font-sans">
         <RefreshCw className="w-12 h-12 animate-spin text-blue-500 mb-4" />
         <p className="text-xl font-semibold text-slate-700">
@@ -238,7 +242,7 @@ const App: React.FC = () => {
         <div className="mt-8 p-4 bg-slate-50 rounded-lg text-left max-w-2xl overflow-auto border border-slate-200">
           <p className="text-[10px] font-mono text-slate-400 uppercase mb-2">
             Error Log:
-        </p>
+          </p>
           <pre className="text-[10px] font-mono text-red-600 whitespace-pre-wrap">
             {error}
           </pre>
@@ -619,10 +623,22 @@ const App: React.FC = () => {
                 <div className="text-xs text-slate-600 font-medium">
                   {scenario.description}
                 </div>
-                <div className="mt-2 flex items-center gap-2 text-[11px] font-mono text-slate-500">
-                  <span>Buy @ ${scenario.entryPrice.toFixed(2)}</span>
-                  <span>→</span>
-                  <span>Sell @ ${scenario.exitPrice.toFixed(2)}</span>
+                <div className="mt-2 flex flex-col gap-1 text-[11px] font-mono text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <span className="w-12 text-slate-400 font-bold">진입</span>
+                    <span>Buy @ ${scenario.entryPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-12 text-blue-500 font-bold">기본</span>
+                    <span>Sell @ ${scenario.exitPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-12 text-red-500 font-bold">확장</span>
+                    <span>
+                      Sell @ ${scenario.extensionPrice.toFixed(2)}
+                      (조건부)
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -786,10 +802,12 @@ const App: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-1">
-                    기대 수익률
+                    최대 기대수익
                   </div>
                   <div className="text-lg font-black text-emerald-600">
-                    +{item.profitPotential.toFixed(2)}%
+                    {item.profitPotential <= 0
+                      ? "Range-bound"
+                      : `+${item.profitPotential.toFixed(2)}%`}
                   </div>
                 </div>
               </div>
