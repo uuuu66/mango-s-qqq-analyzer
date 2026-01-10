@@ -18,7 +18,6 @@ import {
   AlertTriangle,
   RefreshCw,
   Download,
-  Info,
 } from "lucide-react";
 import {
   fetchQQQData,
