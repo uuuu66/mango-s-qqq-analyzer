@@ -212,6 +212,8 @@ interface TickerAnalysis {
   beta: number;
   expectedSupport: number;
   expectedResistance: number;
+  expectedMin: number;
+  expectedMax: number;
   changePercent: number;
 }
 
@@ -610,7 +612,15 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
  * 티커별 베타 기반 기대 지지/저항선 분석 API
  */
 app.get("/api/ticker-analysis", async (req: Request, res: Response) => {
-  const { symbol, qqqPrice, qqqSupport, qqqResistance, months } = req.query;
+  const {
+    symbol,
+    qqqPrice,
+    qqqSupport,
+    qqqResistance,
+    qqqMin,
+    qqqMax,
+    months,
+  } = req.query;
 
   if (!symbol) {
     return res.status(400).json({ error: "티커 심볼이 필요합니다." });
@@ -633,6 +643,8 @@ app.get("/api/ticker-analysis", async (req: Request, res: Response) => {
     const qPrice = Number(qqqPrice);
     const qSupport = Number(qqqSupport);
     const qResistance = Number(qqqResistance);
+    const qMin = Number(qqqMin);
+    const qMax = Number(qqqMax);
 
     if (!qPrice || !qSupport || !qResistance) {
       return res.status(400).json({ error: "QQQ 기준 데이터가 필요합니다." });
@@ -643,6 +655,12 @@ app.get("/api/ticker-analysis", async (req: Request, res: Response) => {
     const expectedSupport = currentPrice * (1 + beta * (qSupport / qPrice - 1));
     const expectedResistance =
       currentPrice * (1 + beta * (qResistance / qPrice - 1));
+    const expectedMin = qMin
+      ? currentPrice * (1 + beta * (qMin / qPrice - 1))
+      : expectedSupport * 0.97;
+    const expectedMax = qMax
+      ? currentPrice * (1 + beta * (qMax / qPrice - 1))
+      : expectedResistance + 10;
 
     const analysis: TickerAnalysis = {
       symbol: String(symbol).toUpperCase(),
@@ -650,6 +668,8 @@ app.get("/api/ticker-analysis", async (req: Request, res: Response) => {
       beta,
       expectedSupport,
       expectedResistance,
+      expectedMin,
+      expectedMax,
       changePercent: quote.regularMarketChangePercent || 0,
     };
 

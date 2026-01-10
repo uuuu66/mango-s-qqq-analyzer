@@ -55,6 +55,8 @@ export interface TickerAnalysis {
   beta: number;
   expectedSupport: number;
   expectedResistance: number;
+  expectedMin: number;
+  expectedMax: number;
   changePercent: number;
 }
 
@@ -63,6 +65,8 @@ export const fetchTickerAnalysis = async (
   qqqPrice: number,
   qqqSupport: number,
   qqqResistance: number,
+  qqqMin: number,
+  qqqMax: number,
   months: number = 3
 ): Promise<TickerAnalysis> => {
   const query = new URLSearchParams({
@@ -70,6 +74,8 @@ export const fetchTickerAnalysis = async (
     qqqPrice: qqqPrice.toString(),
     qqqSupport: qqqSupport.toString(),
     qqqResistance: qqqResistance.toString(),
+    qqqMin: qqqMin.toString(),
+    qqqMax: qqqMax.toString(),
     months: months.toString(),
   });
 

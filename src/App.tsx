@@ -88,11 +88,16 @@ const App: React.FC = () => {
     setTickerLoading(true);
     setTickerError(null);
     try {
+      const qqqMin = data.recommendations[0].max;
+      const qqqMax = data.recommendations[5].max;
+
       const result = await fetchTickerAnalysis(
         tickerInput,
         data.currentPrice,
         data.putSupport,
         data.callResistance,
+        qqqMin,
+        qqqMax,
         betaPeriod
       );
       setTickerAnalysis(result);
@@ -661,29 +666,60 @@ const App: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
-                  <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">
-                    예상 지지선 (Support)
+                {/* 하방 지지선 그룹 */}
+                <div className="space-y-4">
+                  <div className="p-6 bg-slate-100/50 rounded-2xl border border-slate-200">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
+                      최저 위험선 (Extreme Risk)
+                    </div>
+                    <div className="text-2xl font-mono font-black text-slate-700">
+                      ${tickerAnalysis.expectedMin.toFixed(2)}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-2 font-medium">
+                      QQQ가 ${data?.recommendations[0].max.toFixed(2)}까지
+                      폭락할 때
+                    </p>
                   </div>
-                  <div className="text-2xl font-mono font-black text-blue-900">
-                    ${tickerAnalysis.expectedSupport.toFixed(2)}
+
+                  <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
+                    <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">
+                      예상 지지선 (Support)
+                    </div>
+                    <div className="text-2xl font-mono font-black text-blue-900">
+                      ${tickerAnalysis.expectedSupport.toFixed(2)}
+                    </div>
+                    <p className="text-[11px] text-blue-600/70 mt-2 font-medium">
+                      QQQ가 ${data?.putSupport.toFixed(2)}까지 밀릴 때
+                    </p>
                   </div>
-                  <p className="text-[11px] text-blue-600/70 mt-2 font-medium">
-                    QQQ가 ${data?.putSupport.toFixed(2)}까지 밀릴 때의 예상가
-                  </p>
                 </div>
 
-                <div className="p-6 bg-red-50 rounded-2xl border border-red-100">
-                  <div className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-2">
-                    예상 저항선 (Resistance)
+                {/* 상방 저항선 그룹 */}
+                <div className="space-y-4">
+                  <div className="p-6 bg-red-50 rounded-2xl border border-red-100">
+                    <div className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-2">
+                      예상 저항선 (Resistance)
+                    </div>
+                    <div className="text-2xl font-mono font-black text-red-900">
+                      ${tickerAnalysis.expectedResistance.toFixed(2)}
+                    </div>
+                    <p className="text-[11px] text-red-600/70 mt-2 font-medium">
+                      QQQ가 ${data?.callResistance.toFixed(2)}까지 오를 때
+                    </p>
                   </div>
-                  <div className="text-2xl font-mono font-black text-red-900">
-                    ${tickerAnalysis.expectedResistance.toFixed(2)}
+
+                  <div className="p-6 bg-orange-50 rounded-2xl border border-orange-100">
+                    <div className="text-[10px] font-bold text-orange-500 uppercase tracking-widest mb-2">
+                      최대 목표선 (Strong Sell)
+                    </div>
+                    <div className="text-2xl font-mono font-black text-orange-900">
+                      ${tickerAnalysis.expectedMax.toFixed(2)}
+                    </div>
+                    <p className="text-[11px] text-orange-600/70 mt-2 font-medium">
+                      QQQ가 ${data?.recommendations[5].max.toFixed(2)}까지
+                      과열될 때
+                    </p>
                   </div>
-                  <p className="text-[11px] text-red-600/70 mt-2 font-medium">
-                    QQQ가 ${data?.callResistance.toFixed(2)}까지 오를 때의
-                    예상가
-                  </p>
                 </div>
               </div>
 
