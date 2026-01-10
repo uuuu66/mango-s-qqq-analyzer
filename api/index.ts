@@ -193,6 +193,7 @@ interface ProcessedOption extends Omit<OptionDataInput, "expiration"> {
 
 interface ExpirationAnalysis {
   date: string;
+  isoDate: string; // ISO 형식의 전체 날짜 (요일 계산용)
   callResistance: number;
   putSupport: number;
   gammaFlip: number;
@@ -203,6 +204,12 @@ interface ExpirationAnalysis {
   pcrAll: number; // 전체 스트라이크 기준
   pcrFiltered: number; // 필터링(±15%) 기준
   sentiment: number;
+  profitPotential: number; // 기대 수익률 (%)
+  priceProbability: {
+    up: number;
+    down: number;
+    neutral: number;
+  };
   options: ProcessedOption[];
 }
 
@@ -244,9 +251,17 @@ const generateRecommendations = (
   support: number,
   resistance: number
 ): Recommendation[] => {
-  // 지지선과 저항선이 뒤집혀 있는 경우 보정
-  const low = Math.min(support, resistance);
-  const high = Math.max(support, resistance);
+  // 지지선과 저항선이 뒤집혀 있거나 동일한 경우 보정
+  let low = Math.min(support, resistance);
+  let high = Math.max(support, resistance);
+
+  // 지지선과 저항선이 같거나 너무 가까우면(0.5% 미만) 강제로 최소 간격 유지
+  // 이는 옵션 에너지가 특정 행사가에 극도로 몰려 있을 때 UI가 깨지는 것을 방지함
+  if (high - low < low * 0.005) {
+    low = low * 0.995;
+    high = high * 1.005;
+  }
+
   const mid = (low + high) / 2;
 
   // Neutral과 Sell의 경계선을 정할 때 비율 기반 안전장치
@@ -307,45 +322,68 @@ const processOption = (
   spotPrice: number,
   timeToExpiration: number
 ): ProcessedOption => {
-  const { strike, impliedVolatility = 0.2, openInterest = 0 } = option;
+  const strike = Number(option.strike);
+  const openInterest = Number(option.openInterest ?? 0);
+
+  // ✅ null/NaN/0 방어: IV가 유효하지 않으면 기본값 0.2(20%) 사용
+  const ivRaw = option.impliedVolatility;
+  const impliedVolatility =
+    typeof ivRaw === "number" && isFinite(ivRaw) && ivRaw > 0 ? ivRaw : 0.2;
 
   let gamma = 0;
   try {
-    // 리서치 제언: 배당 수익률(q)을 반영하기 위해 기초 자산 가격 조정 (S * e^-qT)
     const adjustedSpot =
       spotPrice * Math.exp(-DIVIDEND_YIELD * timeToExpiration);
 
     const result = blackScholes.option({
       rate: RISK_FREE_RATE,
       sigma: impliedVolatility,
-      strike: strike,
+      strike,
       time: Math.max(timeToExpiration, 0.0001),
-      type: type,
+      type,
       underlying: adjustedSpot,
     });
     gamma = result.gamma;
   } catch {
-    // skip
+    // gamma = 0
   }
 
-  // 리서치 제언: Dollar Notional GEX (1% 변동 기준)
-  // GEX = Gamma * OI * 100 * S^2 * 0.01
+  // Dollar Notional GEX (1% Move 기준)
   const gammaExposure =
     (type === "call" ? 1 : -1) *
     gamma *
-    (openInterest || 0) *
+    openInterest *
     100 *
     (spotPrice * spotPrice) *
     0.01;
 
   return {
     ...option,
+    strike,
+    impliedVolatility,
+    openInterest,
     type,
     gamma,
     gex: gammaExposure,
     expirationDate: option.expiration,
   };
 };
+
+interface SwingScenario {
+  entryDate: string;
+  exitDate: string;
+  entryPrice: number;
+  exitPrice: number;
+  profit: number;
+  description: string;
+}
+
+interface TrendForecast {
+  period: string;
+  direction: "상승" | "하락" | "횡보";
+  probability: number;
+  description: string;
+}
 
 app.get("/api/analysis", async (_request: Request, response: Response) => {
   const diagnostics: Diagnostics = {
@@ -466,16 +504,21 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           );
 
           // 3) 정석적인 Call Wall / Put Wall 추출
-          // Call Wall: 콜 옵션 중 GEX 에너지가 가장 큰(양수 최대) 지점
+          // ✅ 절대값(에너지 크기) 기준 최대 지점 추출로 변경하여 0값 붕괴 방어
           const callWall =
-            calls.length > 0
-              ? calls.reduce((p, c) => (c.gex > p.gex ? c : p), calls[0]).strike
+            calls.length > 0 && calls.some((c) => c.gex !== 0)
+              ? calls.reduce(
+                  (p, c) => (Math.abs(c.gex) > Math.abs(p.gex) ? c : p),
+                  calls[0]
+                ).strike
               : currentPrice * 1.05;
 
-          // Put Wall: 풋 옵션 중 GEX 에너지가 가장 큰(음수 최소) 지점
           const putWall =
-            puts.length > 0
-              ? puts.reduce((p, c) => (c.gex < p.gex ? c : p), puts[0]).strike
+            puts.length > 0 && puts.some((p) => p.gex !== 0)
+              ? puts.reduce(
+                  (p, c) => (Math.abs(c.gex) > Math.abs(p.gex) ? c : p),
+                  puts[0]
+                ).strike
               : currentPrice * 0.95;
 
           const callGex = calls.reduce((acc, opt) => acc + (opt.gex || 0), 0);
@@ -489,6 +532,38 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             timeToExpiration
           );
           const volTrigger = gammaFlip * 0.985;
+
+          // 5) 옵션 분포 기반 가격 변동 확률 계산 (새로 추가된 로직)
+          // 콜 옵션의 총 긍정적 에너지 vs 풋 옵션의 총 부정적 에너지 비율 분석
+          const totalCallEnergy = calls.reduce(
+            (acc, opt) => acc + Math.max(0, opt.gex),
+            0
+          );
+          const totalPutEnergy = puts.reduce(
+            (acc, opt) => acc + Math.abs(Math.min(0, opt.gex)),
+            0
+          );
+          const totalEnergy = totalCallEnergy + totalPutEnergy;
+
+          let upProb = 50;
+          let downProb = 50;
+          let neutralProb = 0;
+
+          if (totalEnergy > 0) {
+            // 기본적인 GEX 비율
+            upProb = (totalCallEnergy / totalEnergy) * 100;
+            downProb = (totalPutEnergy / totalEnergy) * 100;
+
+            // 중립(횡보) 확률: 현재가 주변 GEX가 낮고 외가격에 에너지가 분산된 경우
+            neutralProb = Math.max(
+              0,
+              100 - Math.abs(upProb - downProb) * 1.5 - 20
+            );
+            const remaining = 100 - neutralProb;
+            const ratio = upProb / (upProb + downProb);
+            upProb = remaining * ratio;
+            downProb = remaining * (1 - ratio);
+          }
 
           // 필터링된 데이터 기준 PCR
           const filteredCallOI = calls.reduce(
@@ -514,6 +589,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
               month: "2-digit",
               day: "2-digit",
             }),
+            isoDate: dateObj.toISOString(),
             callResistance: callWall,
             putSupport: putWall,
             gammaFlip,
@@ -529,6 +605,12 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
                     (Math.abs(callGex) + Math.abs(putGex))) *
                   100
                 : 0,
+            profitPotential: ((callWall - putWall) / putWall) * 100,
+            priceProbability: {
+              up: Math.round(upProb),
+              down: Math.round(downProb),
+              neutral: Math.round(neutralProb),
+            },
             options: [...calls, ...puts],
           };
         } catch (e: unknown) {
@@ -553,13 +635,107 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
     const nearest = validResults[0];
 
+    // ✅ 지지/저항 붕괴 감지 안전장치
+    const collapseThreshold = currentPrice * 0.001; // 0.1% 차이 미만 시 붕괴로 간주
+    const isCollapsed =
+      Math.abs(nearest.putSupport - nearest.callResistance) < collapseThreshold;
+
     const recommendations = generateRecommendations(
       nearest.putSupport,
       nearest.callResistance
     );
 
+    // 5) 복합 일자별 스윙 시나리오 도출 (다양한 기간 조합 탐색)
+    const swingScenarios: SwingScenario[] = [];
+    if (validResults.length >= 2) {
+      // 요일 계산 헬퍼
+      const getDayName = (isoDate: string) => {
+        const days = ["일", "월", "화", "수", "목", "금", "토"];
+        try {
+          const date = new Date(isoDate);
+          return days[date.getDay()];
+        } catch {
+          return "";
+        }
+      };
+
+      // 모든 가능한 [진입일 - 청산일] 조합 탐색 (최대 4일 간격까지)
+      const combinations: SwingScenario[] = [];
+      for (let i = 0; i < validResults.length; i++) {
+        for (let j = i + 1; j < Math.min(i + 4, validResults.length); j++) {
+          const entry = validResults[i];
+          const exit = validResults[j];
+
+          const entryDay = getDayName(entry.isoDate);
+          const exitDay = getDayName(exit.isoDate);
+          const duration = j - i;
+
+          const profit =
+            ((exit.callResistance - entry.putSupport) / entry.putSupport) * 100;
+
+          // 수익률이 0보다 큰 경우만 시나리오에 추가
+          if (profit > 0) {
+            combinations.push({
+              entryDate: `${entry.date}(${entryDay})`,
+              exitDate: `${exit.date}(${exitDay})`,
+              entryPrice: entry.putSupport,
+              exitPrice: exit.callResistance,
+              profit,
+              description: `${duration}일 스윙: ${entryDay}요일 진입 → ${exitDay}요일 목표가 도달 시나리오`,
+            });
+          }
+        }
+      }
+
+      // 수익률이 높은 상위 3개 시나리오만 선택
+      swingScenarios.push(
+        ...combinations.sort((a, b) => b.profit - a.profit).slice(0, 3)
+      );
+    }
+
+    // 6) 추세 및 확률 예측 로직
+    const trendForecast: TrendForecast[] = [];
+    if (validResults.length >= 2) {
+      const first = validResults[0];
+      const last = validResults[validResults.length - 1];
+
+      const sentimentDiff = last.sentiment - first.sentiment;
+      const gexDiff = last.totalGex - first.totalGex;
+
+      let direction: "상승" | "하락" | "횡보" = "횡보";
+      let prob = 50;
+      let desc = "";
+
+      if (sentimentDiff > 10 && gexDiff > 0) {
+        direction = "상승";
+        prob = Math.min(65 + sentimentDiff / 2, 92);
+        desc =
+          "심리 지수와 GEX 에너지가 동반 상승 중이며, 매수세가 점진적으로 강화되는 추세입니다.";
+      } else if (sentimentDiff < -10 && gexDiff < 0) {
+        direction = "하락";
+        prob = Math.min(65 + Math.abs(sentimentDiff) / 2, 92);
+        desc =
+          "심리 지수가 악화되고 GEX 방어력이 약화되고 있어, 매도 압력이 우세한 구간입니다.";
+      } else {
+        direction = "횡보";
+        prob = 70;
+        desc =
+          "에너지가 특정 방향으로 쏠리지 않고 박스권 내에서 힘겨루기가 진행 중입니다.";
+      }
+
+      trendForecast.push({
+        period: `${first.date} ~ ${last.date}`,
+        direction,
+        probability: Math.round(prob),
+        description: desc,
+      });
+    }
+
     response.json({
       currentPrice,
+      warning: isCollapsed
+        ? "Support/Resistance collapsed. Check IV or Option data availability."
+        : null,
       options: nearest.options,
       totalNetGEX: `${(nearest.totalGex / 1e9).toFixed(2)}B USD/1%`,
       // 리서치 제언: 가격이 감마 플립보다 위에 있으면 안정(Stabilizing), 아래면 변동(Volatile)
@@ -579,6 +755,8 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         pcrAll: result.pcrAll,
         pcrFiltered: result.pcrFiltered,
         sentiment: result.sentiment,
+        profitPotential: result.profitPotential,
+        priceProbability: result.priceProbability,
       })),
       callResistance: nearest.callResistance,
       putSupport: nearest.putSupport,
@@ -587,6 +765,8 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         ...rec,
         priceRange: `${rec.min.toFixed(2)} - ${rec.max.toFixed(2)}`,
       })),
+      swingScenarios,
+      trendForecast,
       diagnostics,
     });
   } catch (err: unknown) {

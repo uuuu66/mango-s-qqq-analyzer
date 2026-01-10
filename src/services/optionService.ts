@@ -23,6 +23,7 @@ export interface Recommendation {
 
 export interface TimeSeriesData {
   date: string;
+  isoDate: string;
   callResistance: number;
   putSupport: number;
   gammaFlip: number;
@@ -33,6 +34,28 @@ export interface TimeSeriesData {
   pcrAll: number;
   pcrFiltered: number;
   sentiment: number;
+  profitPotential: number;
+  priceProbability: {
+    up: number;
+    down: number;
+    neutral: number;
+  };
+}
+
+export interface SwingScenario {
+  entryDate: string;
+  exitDate: string;
+  entryPrice: number;
+  exitPrice: number;
+  profit: number;
+  description: string;
+}
+
+export interface TrendForecast {
+  period: string;
+  direction: "상승" | "하락" | "횡보";
+  probability: number;
+  description: string;
 }
 
 export interface AnalysisResult {
@@ -47,6 +70,8 @@ export interface AnalysisResult {
   volTrigger: number;
   totalGex: number;
   recommendations: Recommendation[];
+  swingScenarios?: SwingScenario[];
+  trendForecast?: TrendForecast[];
 }
 
 export interface TickerAnalysis {

@@ -130,13 +130,40 @@ const App: React.FC = () => {
     text += `\n`;
 
     text += `[ Market Sentiment & Trend ]\n`;
-    text += `Date\tPCR(All)\tPCR(Filtered)\tSentiment Score\n`;
+    text += `Date\tPCR(All)\tPCR(Filtered)\tSentiment Score\tMax Profit Range\tUp/Down/Neutral Prob\n`;
     data.timeSeries.forEach((item) => {
       text += `${item.date}\t${item.pcrAll.toFixed(
         2
-      )}\t${item.pcrFiltered.toFixed(2)}\t${item.sentiment.toFixed(1)}\n`;
+      )}\t${item.pcrFiltered.toFixed(2)}\t${item.sentiment.toFixed(
+        1
+      )}\t${item.profitPotential.toFixed(2)}%\t${
+        item.priceProbability?.up ?? 0
+      }%/${item.priceProbability?.down ?? 0}%/${
+        item.priceProbability?.neutral ?? 0
+      }%\n`;
     });
     text += `\n`;
+
+    if (data.swingScenarios && data.swingScenarios.length > 0) {
+      text += `[ Swing Strategy Scenarios ]\n`;
+      data.swingScenarios.forEach((s) => {
+        text += `- ${s.entryDate} Buy ($${s.entryPrice.toFixed(2)}) -> ${
+          s.exitDate
+        } Sell ($${s.exitPrice.toFixed(2)}) : +${s.profit.toFixed(2)}%\n`;
+      });
+      text += `\n`;
+    }
+
+    if (data.trendForecast && data.trendForecast.length > 0) {
+      text += `[ Market Trend Forecast ]\n`;
+      data.trendForecast.forEach((t) => {
+        text += `- Period: ${t.period}\n`;
+        text += `  Direction: ${t.direction}\n`;
+        text += `  Probability: ${t.probability}%\n`;
+        text += `  Description: ${t.description}\n`;
+      });
+      text += `\n`;
+    }
 
     if (data.options && data.options.length > 0) {
       text += `[ Top 15 Options by Open Interest ]\n`;
@@ -567,6 +594,246 @@ const App: React.FC = () => {
             </div>
           </div>
         </section>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-emerald-500" />
+            복합 일자별 스윙 시나리오 (Swing Strategy)
+          </h3>
+          <div className="space-y-4">
+            {data?.swingScenarios?.map((scenario, idx) => (
+              <div
+                key={idx}
+                className="p-4 bg-blue-50/50 rounded-xl border border-blue-100"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">
+                    {scenario.entryDate} → {scenario.exitDate}
+                  </span>
+                  <span className="text-sm font-black text-emerald-600">
+                    +{scenario.profit.toFixed(2)}%
+                  </span>
+                </div>
+                <div className="text-xs text-slate-600 font-medium">
+                  {scenario.description}
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-[11px] font-mono text-slate-500">
+                  <span>Buy @ ${scenario.entryPrice.toFixed(2)}</span>
+                  <span>→</span>
+                  <span>Sell @ ${scenario.exitPrice.toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
+            {(!data?.swingScenarios || data?.swingScenarios.length === 0) && (
+              <p className="text-sm text-slate-400 text-center py-4">
+                충분한 데이터가 확보되지 않았습니다.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-indigo-500" />
+            시장 방향성 및 확률 예측 (Trend Forecast)
+          </h3>
+          <div className="space-y-6">
+            {data?.trendForecast?.map((forecast, idx) => (
+              <div key={idx}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`px-3 py-1 rounded-full text-xs font-black text-white uppercase tracking-wider ${
+                        forecast.direction === "상승"
+                          ? "bg-emerald-500"
+                          : forecast.direction === "하락"
+                          ? "bg-red-500"
+                          : "bg-slate-400"
+                      }`}
+                    >
+                      {forecast.direction}
+                    </div>
+                    <span className="text-xs text-slate-400 font-bold font-mono">
+                      {forecast.period}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-1">
+                      예측 신뢰도
+                    </div>
+                    <div className="text-2xl font-black text-indigo-600">
+                      {forecast.probability}%
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm text-slate-700 leading-relaxed font-medium">
+                  {forecast.description}
+                </div>
+              </div>
+            ))}
+            {(!data?.trendForecast || data?.trendForecast.length === 0) && (
+              <p className="text-sm text-slate-400 text-center py-4">
+                추세 분석을 위한 데이터가 부족합니다.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 mt-12">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-purple-500" />
+            만기별 옵션 분포 기반 가격 변동 확률 (Option Distribution
+            Probabilities)
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {data?.timeSeries?.slice(0, 6).map((item, idx) => (
+              <div
+                key={idx}
+                className="p-5 rounded-2xl border border-slate-100 bg-slate-50/50"
+              >
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 pb-2 border-b border-slate-200/50">
+                  {item.date} 만기 분포 분석
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-[11px] font-bold mb-1.5">
+                      <span className="text-emerald-600">상승 확률</span>
+                      <span className="text-slate-900">
+                        {item.priceProbability?.up ?? 0}%
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 transition-all duration-1000"
+                        style={{
+                          width: `${item.priceProbability?.up ?? 0}%`,
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[11px] font-bold mb-1.5">
+                      <span className="text-red-600">하락 확률</span>
+                      <span className="text-slate-900">
+                        {item.priceProbability?.down ?? 0}%
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-red-500 transition-all duration-1000"
+                        style={{
+                          width: `${item.priceProbability?.down ?? 0}%`,
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[11px] font-bold mb-1.5">
+                      <span className="text-slate-500">횡보 확률</span>
+                      <span className="text-slate-900">
+                        {item.priceProbability?.neutral ?? 0}%
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-slate-400 transition-all duration-1000"
+                        style={{
+                          width: `${item.priceProbability?.neutral ?? 0}%`,
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-4 text-[9px] text-slate-400 leading-relaxed">
+                  * 해당 만기일의 콜/풋 GEX 에너지 분포 및 외가격(OTM) 옵션
+                  비중을 분석한 통계적 기대 확률입니다.
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-emerald-500" />
+            일자별 최적 매매 시나리오 (Max Profit)
+          </h3>
+          <div className="space-y-4">
+            {data?.timeSeries?.slice(0, 5).map((item, idx) => (
+              <div
+                key={idx}
+                className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100"
+              >
+                <div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    {item.date} 만기 시나리오
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-bold text-blue-600">
+                      Buy @ ${item.putSupport.toFixed(2)}
+                    </span>
+                    <span className="text-slate-300">→</span>
+                    <span className="font-bold text-red-600">
+                      Sell @ ${item.callResistance.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-1">
+                    기대 수익률
+                  </div>
+                  <div className="text-lg font-black text-emerald-600">
+                    +{item.profitPotential.toFixed(2)}%
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
+            * 본 시나리오는 GEX 에너지 최대 밀집 구간인 Put Wall(매수)과 Call
+            Wall(매도)을 기반으로 한 이론적 최대 변동폭입니다. 실제 시장 상황에
+            따라 도달하지 못할 수 있습니다.
+          </p>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-500" />
+            시장 리스크 및 변동성 트리거
+          </h3>
+          <div className="space-y-4">
+            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+              <div className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">
+                감마 플립 (Gamma Flip)
+              </div>
+              <div className="text-xl font-black text-amber-900">
+                ${data?.gammaFlip.toFixed(2)}
+              </div>
+              <p className="text-[11px] text-amber-700 mt-1">
+                이 가격 아래로 하락 시 시장의 변동성이 급격히 확대되는
+                임계점입니다.
+              </p>
+            </div>
+            <div className="p-4 bg-rose-50 rounded-xl border border-rose-100">
+              <div className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-1">
+                변동성 트리거 (Volatility Trigger)
+              </div>
+              <div className="text-xl font-black text-rose-900">
+                ${data?.volTrigger.toFixed(2)}
+              </div>
+              <p className="text-[11px] text-rose-700 mt-1">
+                감마 플립 하단 지지선으로, 돌파 시 패닉 셀링이 가속화될 수
+                있습니다.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Ticker Search Section */}
