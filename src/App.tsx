@@ -18,11 +18,14 @@ import {
   AlertTriangle,
   RefreshCw,
   Download,
+  Search,
 } from "lucide-react";
 import {
   fetchQQQData,
+  fetchTickerAnalysis,
   type AnalysisResult,
   type Recommendation,
+  type TickerAnalysis,
 } from "./services/optionService";
 import "./App.css";
 
@@ -31,6 +34,15 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
+
+  // Ticker Analysis States
+  const [tickerInput, setTickerInput] = useState<string>("");
+  const [betaPeriod, setBetaPeriod] = useState<number>(1);
+  const [tickerAnalysis, setTickerAnalysis] = useState<TickerAnalysis | null>(
+    null
+  );
+  const [tickerLoading, setTickerLoading] = useState<boolean>(false);
+  const [tickerError, setTickerError] = useState<string | null>(null);
 
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -68,6 +80,31 @@ const App: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  const handleTickerSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tickerInput || !data) return;
+
+    setTickerLoading(true);
+    setTickerError(null);
+    try {
+      const result = await fetchTickerAnalysis(
+        tickerInput,
+        data.currentPrice,
+        data.putSupport,
+        data.callResistance,
+        betaPeriod
+      );
+      setTickerAnalysis(result);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "분석에 실패했습니다.";
+      setTickerError(message);
+      setTickerAnalysis(null);
+    } finally {
+      setTickerLoading(false);
+    }
+  };
 
   const downloadAsText = useCallback(() => {
     if (!data) return;
@@ -526,6 +563,181 @@ const App: React.FC = () => {
           </div>
         </section>
       </div>
+
+      {/* Ticker Search Section */}
+      <section className="mt-12 p-6 md:p-8 border border-slate-200 rounded-3xl bg-slate-50/50 shadow-sm">
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">
+              개별 티커 베타 분석
+            </h2>
+            <p className="text-sm text-slate-500">
+              QQQ GEX 데이터와 개별 주식의 베타($\beta$)를 결합하여 예상
+              지지/저항선을 계산합니다.
+            </p>
+          </div>
+
+          <form
+            onSubmit={handleTickerSearch}
+            className="flex flex-col sm:flex-row gap-2 mb-6"
+          >
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input
+                type="text"
+                value={tickerInput}
+                onChange={(e) => setTickerInput(e.target.value.toUpperCase())}
+                placeholder="티커 입력 (예: TSLA, NVDA)"
+                className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold"
+              />
+            </div>
+            <div className="flex gap-2">
+              <select
+                value={betaPeriod}
+                onChange={(e) => setBetaPeriod(Number(e.target.value))}
+                className="px-4 py-3.5 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold text-slate-700 text-sm appearance-none cursor-pointer"
+              >
+                <option value={1}>1개월 베타</option>
+                <option value={3}>3개월 베타</option>
+                <option value={6}>6개월 베타</option>
+                <option value={12}>1년 베타</option>
+                <option value={24}>2년 베타</option>
+              </select>
+              <button
+                type="submit"
+                disabled={tickerLoading || !data}
+                className="px-6 py-3.5 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 disabled:opacity-50 transition-all flex items-center gap-2 whitespace-nowrap shadow-lg shadow-slate-200"
+              >
+                {tickerLoading ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : (
+                  "분석하기"
+                )}
+              </button>
+            </div>
+          </form>
+
+          {tickerError && (
+            <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-medium flex items-center gap-2 mb-6 border border-red-100">
+              <AlertTriangle className="w-4 h-4" />
+              {tickerError}
+            </div>
+          )}
+
+          {tickerAnalysis && (
+            <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-3xl font-black text-slate-900 tracking-tight">
+                    {tickerAnalysis.symbol}
+                  </h3>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
+                    Beta-Adjusted Analysis
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-mono font-black text-slate-900">
+                    ${tickerAnalysis.currentPrice.toFixed(2)}
+                  </div>
+                  <div
+                    className={`text-sm font-bold ${
+                      tickerAnalysis.changePercent >= 0
+                        ? "text-emerald-500"
+                        : "text-red-500"
+                    }`}
+                  >
+                    {tickerAnalysis.changePercent >= 0 ? "+" : ""}
+                    {tickerAnalysis.changePercent.toFixed(2)}%
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
+                  <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">
+                    예상 지지선 (Support)
+                  </div>
+                  <div className="text-2xl font-mono font-black text-blue-900">
+                    ${tickerAnalysis.expectedSupport.toFixed(2)}
+                  </div>
+                  <p className="text-[11px] text-blue-600/70 mt-2 font-medium">
+                    QQQ가 ${data?.putSupport.toFixed(2)}까지 밀릴 때의 예상가
+                  </p>
+                </div>
+
+                <div className="p-6 bg-red-50 rounded-2xl border border-red-100">
+                  <div className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-2">
+                    예상 저항선 (Resistance)
+                  </div>
+                  <div className="text-2xl font-mono font-black text-red-900">
+                    ${tickerAnalysis.expectedResistance.toFixed(2)}
+                  </div>
+                  <p className="text-[11px] text-red-600/70 mt-2 font-medium">
+                    QQQ가 ${data?.callResistance.toFixed(2)}까지 오를 때의
+                    예상가
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 p-4 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-tight">
+                  적용 베타 ($\beta$)
+                </span>
+                <div className="flex flex-col items-end">
+                  <span className="font-mono font-bold text-slate-700 bg-white px-3 py-1 rounded-lg border border-slate-200">
+                    {tickerAnalysis.beta.toFixed(2)}
+                  </span>
+                  <span className="text-[9px] text-slate-400 mt-1 font-medium">
+                    *최근{" "}
+                    {betaPeriod >= 12
+                      ? `${betaPeriod / 12}년`
+                      : `${betaPeriod}개월`}{" "}
+                    일일 수익률 기반 정밀 계산
+                  </span>
+                </div>
+              </div>
+
+              {/* Formula Explanation Section */}
+              <div className="mt-8 pt-6 border-t border-slate-100">
+                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5" /> 분석 계산 공식
+                  (Methodology)
+                </h4>
+                <div className="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-600 mb-1">
+                      1. 실시간 베타계수 ($\beta$) 산출
+                    </p>
+                    <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
+                      Beta = Cov(r_stock, r_qqq) / Var(r_qqq)
+                      <br />
+                      *r: 최근{" "}
+                      {betaPeriod >= 12
+                        ? `${betaPeriod / 12}년`
+                        : `${betaPeriod}개월`}
+                      간의 일일 로그 수익률 (Daily Returns)
+                    </code>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-600 mb-1">
+                      2. 기대 가격 (Target Price) 예측
+                    </p>
+                    <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
+                      Target = Current * (1 + Beta * (QQQ_Target / QQQ_Current -
+                      1))
+                    </code>
+                    <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
+                      * 본 공식은 자본자산가격결정모델(CAPM)의 원리를 응용하여,
+                      시장(QQQ) 변동에 따른 개별 자산의 민감도를 가격에 투영한
+                      결과입니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
 
       <section className="mt-12 mb-8 p-8 border-2 border-dashed border-blue-100 rounded-3xl bg-blue-50/30 text-center">
         <div className="max-w-md mx-auto">

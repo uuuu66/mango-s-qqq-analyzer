@@ -49,6 +49,38 @@ export interface AnalysisResult {
   recommendations: Recommendation[];
 }
 
+export interface TickerAnalysis {
+  symbol: string;
+  currentPrice: number;
+  beta: number;
+  expectedSupport: number;
+  expectedResistance: number;
+  changePercent: number;
+}
+
+export const fetchTickerAnalysis = async (
+  symbol: string,
+  qqqPrice: number,
+  qqqSupport: number,
+  qqqResistance: number,
+  months: number = 3
+): Promise<TickerAnalysis> => {
+  const query = new URLSearchParams({
+    symbol,
+    qqqPrice: qqqPrice.toString(),
+    qqqSupport: qqqSupport.toString(),
+    qqqResistance: qqqResistance.toString(),
+    months: months.toString(),
+  });
+
+  const response = await fetch(`/api/ticker-analysis?${query}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "티커 분석 실패");
+  }
+  return response.json();
+};
+
 export const fetchQQQData = async (): Promise<AnalysisResult> => {
   try {
     const response = await fetch("/api/analysis");

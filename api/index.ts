@@ -3,7 +3,9 @@ import cors from "cors";
 import YahooFinance from "yahoo-finance2";
 import { BlackScholes } from "@uqee/black-scholes";
 
-const yahooFinance = new YahooFinance();
+const yahooFinance = new YahooFinance({
+  suppressNotices: ["ripHistorical", "yahooSurvey"],
+});
 const blackScholes = new BlackScholes();
 
 const app = express();
@@ -12,6 +14,97 @@ app.use(cors());
 
 const RISK_FREE_RATE = 0.0364; // 2026 SOFR 기준 3.64% 반영
 const DIVIDEND_YIELD = 0.0048; // QQQ 평균 배당 수익률 0.48% 반영
+
+/**
+ * 사용자 지정 기간 히스토리 데이터를 기반으로 베타계수 직접 계산
+ */
+const calculateManualBeta = async (
+  symbol: string,
+  benchmarkSymbol: string = "QQQ",
+  months: number = 3
+): Promise<number> => {
+  const now = new Date();
+  const ago = new Date();
+  ago.setMonth(now.getMonth() - months);
+
+  try {
+    // 티커와 벤치마크(QQQ)의 지정 기간 종가 데이터 가져오기
+    const period1 = ago.toISOString().split("T")[0];
+    const period2 = now.toISOString().split("T")[0];
+
+    const [tickerResult, benchmarkResult] = await Promise.all([
+      yahooFinance.chart(symbol, {
+        period1,
+        period2,
+        interval: "1d",
+      }),
+      yahooFinance.chart(benchmarkSymbol, {
+        period1,
+        period2,
+        interval: "1d",
+      }),
+    ]);
+
+    const tickerQuotes = tickerResult.quotes || [];
+    const benchmarkQuotes = benchmarkResult.quotes || [];
+
+    // 날짜별로 매칭되는 데이터 필터링 (adjclose 사용)
+    const tickerMap = new Map(
+      tickerQuotes.map((q) => [
+        q.date.toISOString().split("T")[0],
+        q.adjclose ?? q.close ?? undefined,
+      ])
+    );
+    const commonData: { ticker: number; benchmark: number }[] = [];
+
+    benchmarkQuotes.forEach((b) => {
+      const dateStr = b.date.toISOString().split("T")[0];
+      const tClose = tickerMap.get(dateStr);
+      const bClose = b.adjclose ?? b.close ?? undefined;
+      if (tClose !== undefined && bClose !== undefined) {
+        commonData.push({ ticker: tClose, benchmark: bClose });
+      }
+    });
+
+    if (commonData.length < 20) return 1.0; // 데이터가 너무 적으면 기본값
+
+    // 일일 수익률 계산
+    const tickerReturns: number[] = [];
+    const benchmarkReturns: number[] = [];
+
+    for (let i = 1; i < commonData.length; i++) {
+      tickerReturns.push(
+        (commonData[i].ticker - commonData[i - 1].ticker) /
+          commonData[i - 1].ticker
+      );
+      benchmarkReturns.push(
+        (commonData[i].benchmark - commonData[i - 1].benchmark) /
+          commonData[i - 1].benchmark
+      );
+    }
+
+    // 베타 계산: Cov(r_t, r_b) / Var(r_b)
+    const avgB =
+      benchmarkReturns.reduce((a, b) => a + b, 0) / benchmarkReturns.length;
+    const avgT =
+      tickerReturns.reduce((a, b) => a + b, 0) / tickerReturns.length;
+
+    let covariance = 0;
+    let varianceB = 0;
+
+    for (let i = 0; i < tickerReturns.length; i++) {
+      const diffB = benchmarkReturns[i] - avgB;
+      const diffT = tickerReturns[i] - avgT;
+      covariance += diffB * diffT;
+      varianceB += diffB * diffB;
+    }
+
+    return varianceB === 0 ? 1.0 : covariance / varianceB;
+  } catch (err) {
+    console.error("Manual Beta Calculation Error:", err);
+    return 1.0;
+  }
+};
 
 /**
  * 정통 Gamma Flip 산출을 위한 Net GEX 계산 함수 (특정 Spot 기준)
@@ -111,6 +204,15 @@ interface ExpirationAnalysis {
   pcrFiltered: number; // 필터링(±15%) 기준
   sentiment: number;
   options: ProcessedOption[];
+}
+
+interface TickerAnalysis {
+  symbol: string;
+  currentPrice: number;
+  beta: number;
+  expectedSupport: number;
+  expectedResistance: number;
+  changePercent: number;
 }
 
 interface DiagnosticDetail {
@@ -501,6 +603,60 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       error: errorMsg,
       diagnostics: diag,
     });
+  }
+});
+
+/**
+ * 티커별 베타 기반 기대 지지/저항선 분석 API
+ */
+app.get("/api/ticker-analysis", async (req: Request, res: Response) => {
+  const { symbol, qqqPrice, qqqSupport, qqqResistance, months } = req.query;
+
+  if (!symbol) {
+    return res.status(400).json({ error: "티커 심볼이 필요합니다." });
+  }
+
+  try {
+    const quote = await yahooFinance.quote(String(symbol));
+
+    if (!quote) {
+      return res.status(404).json({ error: "티커 정보를 찾을 수 없습니다." });
+    }
+
+    const currentPrice = quote.regularMarketPrice || 0;
+
+    // 1) 지정 기간 히스토리 기반 베타 직접 계산 (사용자 선택 반영)
+    const betaMonths = Number(months) || 3;
+    const beta = await calculateManualBeta(String(symbol), "QQQ", betaMonths);
+
+    // QQQ 데이터가 쿼리로 오지 않으면 기본 분석 수행 (또는 에러)
+    const qPrice = Number(qqqPrice);
+    const qSupport = Number(qqqSupport);
+    const qResistance = Number(qqqResistance);
+
+    if (!qPrice || !qSupport || !qResistance) {
+      return res.status(400).json({ error: "QQQ 기준 데이터가 필요합니다." });
+    }
+
+    // 베타 보정 공식 적용
+    // Expected Target = Current * (1 + Beta * (QQQ Target / QQQ Current - 1))
+    const expectedSupport = currentPrice * (1 + beta * (qSupport / qPrice - 1));
+    const expectedResistance =
+      currentPrice * (1 + beta * (qResistance / qPrice - 1));
+
+    const analysis: TickerAnalysis = {
+      symbol: String(symbol).toUpperCase(),
+      currentPrice,
+      beta,
+      expectedSupport,
+      expectedResistance,
+      changePercent: quote.regularMarketChangePercent || 0,
+    };
+
+    res.json(analysis);
+  } catch (err: unknown) {
+    console.error("Ticker Analysis Error:", err);
+    res.status(500).json({ error: "티커 분석 중 오류가 발생했습니다." });
   }
 });
 
