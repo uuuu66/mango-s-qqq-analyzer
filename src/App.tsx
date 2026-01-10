@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Download,
   Search,
+  Info,
 } from "lucide-react";
 import {
   fetchQQQData,
@@ -652,6 +653,26 @@ const App: React.FC = () => {
                 충분한 데이터가 확보되지 않았습니다.
               </p>
             )}
+
+            {/* Swing Probability Methodology */}
+            <div className="mt-6 pt-6 border-t border-slate-100">
+              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <Info className="w-3 h-3" /> 시나리오 확률 산출 로직
+              </h4>
+              <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                <code className="text-[9px] block text-slate-500 leading-relaxed font-mono">
+                  Score = 55% (Base)
+                  <br />
+                  + ΔSentiment * 0.4 (심리 개선도)
+                  <br />
+                  + GEX Trend (방어력 추세 ±5%)
+                  <br />
+                  + (Up - Down) * 0.2 (청산일 분포)
+                  <br />
+                  - Duration * 2% (기간 불확실성)
+                </code>
+              </div>
+            </div>
           </div>
         </div>
 
