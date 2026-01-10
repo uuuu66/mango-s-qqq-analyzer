@@ -7,51 +7,61 @@ export interface OptionData {
   volume: number;
   openInterest: number;
   impliedVolatility: number;
-  expiration: Date;
+  expirationDate: Date;
   gamma?: number;
   gex?: number;
+}
+
+export interface Recommendation {
+  status: string;
+  description: string;
+  priceRange: string;
+  color: string;
+}
+
+export interface TimeSeriesData {
+  date: string;
+  callResistance: number;
+  putSupport: number;
+  callGex: number;
+  putGex: number;
+  totalGex: number;
+  pcr: number;
+  sentiment: number;
 }
 
 export interface AnalysisResult {
   currentPrice: number;
   options: OptionData[];
+  timeSeries: TimeSeriesData[];
   callResistance: number;
   putSupport: number;
   totalGex: number;
-  recommendations: {
-    status: string;
-    description: string;
-    priceRange: string;
-    color: string;
-  }[];
+  recommendations: Recommendation[];
 }
 
 export const fetchQQQData = async (): Promise<AnalysisResult> => {
   try {
-    // Vercel serverless function endpoint
     const response = await fetch("/api/analysis");
     if (!response.ok) {
-      throw new Error("Failed to fetch from server");
+      const errorData = await response.json().catch(() => ({}));
+      throw {
+        serverStatus: response.status,
+        serverStatusText: response.statusText,
+        serverUrl: response.url,
+        ...(typeof errorData === "object"
+          ? errorData
+          : { rawError: errorData }),
+      };
     }
     const data = await response.json();
 
-    // Convert expiration strings back to Date objects
-    data.options = data.options.map((option: unknown) => ({
-      ...(option as {
-        strike: number;
-        type: "call" | "put";
-        lastPrice: number;
-        change: number;
-        percentChange: number;
-        volume: number;
-        openInterest: number;
-        impliedVolatility: number;
-        expiration: string;
-        gamma?: number;
-        gex?: number;
-      }),
-      expiration: new Date((option as { expiration: string }).expiration),
-    }));
+    if (data.options) {
+      data.options = data.options.map((option: OptionData) => ({
+        ...option,
+        expirationDate: new Date(option.expirationDate),
+      }));
+    }
 
     return data;
   } catch (error) {
