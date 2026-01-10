@@ -617,6 +617,14 @@ const App: React.FC = () => {
             </div>
           </form>
 
+          <p className="text-[11px] text-slate-400 mb-6 leading-relaxed bg-slate-100/50 p-3 rounded-xl border border-slate-200/50">
+            <span className="font-bold text-slate-500 mr-1">※ 주의:</span> 본
+            분석은 베타계수를 활용한 통계적 추정치이며 실제 주가 흐름과 다를 수
+            있습니다. 특히 중소형주나 나스닥 100 지수에 포함되지 않은 종목은
+            지수와의 상관관계가 낮아 분석 결과의 부정확도가 높을 수 있으니 단순
+            참고용으로만 활용하시기 바랍니다.
+          </p>
+
           {tickerError && (
             <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-medium flex items-center gap-2 mb-6 border border-red-100">
               <AlertTriangle className="w-4 h-4" />
