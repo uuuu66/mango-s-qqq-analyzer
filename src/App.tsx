@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Download,
+  Info,
 } from "lucide-react";
 import {
   fetchQQQData,
@@ -30,7 +31,6 @@ const App: React.FC = () => {
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
 
   const copyToClipboard = useCallback((text: string) => {
@@ -50,7 +50,15 @@ const App: React.FC = () => {
       console.error("Fetch Error:", err);
       let detailedError = "";
       if (err instanceof Error) {
-        detailedError = JSON.stringify(err, Object.getOwnPropertyNames(err), 2);
+        detailedError = JSON.stringify(
+          {
+            name: err.name,
+            message: err.message,
+            stack: err.stack,
+          },
+          null,
+          2
+        );
       } else {
         detailedError =
           typeof err === "object" ? JSON.stringify(err, null, 2) : String(err);
@@ -69,7 +77,10 @@ const App: React.FC = () => {
     text += `==========================================\n\n`;
     text += `[ Summary ]\n`;
     text += `Current Price: $${data.currentPrice.toFixed(2)}\n`;
-    text += `Total GEX: ${data.totalGex.toLocaleString()}\n\n`;
+    text += `Total Net GEX: ${data.totalNetGEX}\n`;
+    text += `Market Regime: ${data.marketRegime}\n`;
+    text += `Gamma Flip: $${data.gammaFlip.toFixed(2)}\n`;
+    text += `Volatility Trigger: $${data.volTrigger.toFixed(2)}\n\n`;
 
     text += `[ Recommendations ]\n`;
     data.recommendations.forEach((rec) => {
@@ -78,11 +89,11 @@ const App: React.FC = () => {
     text += `\n`;
 
     text += `[ Market Sentiment & Trend ]\n`;
-    text += `Date\tPCR (OI)\tSentiment Score (-100 to 100)\n`;
+    text += `Date\tPCR(All)\tPCR(Filtered)\tSentiment Score\n`;
     data.timeSeries.forEach((item) => {
-      text += `${item.date}\t${item.pcr.toFixed(2)}\t${item.sentiment.toFixed(
-        1
-      )}\n`;
+      text += `${item.date}\t${item.pcrAll.toFixed(
+        2
+      )}\t${item.pcrFiltered.toFixed(2)}\t${item.sentiment.toFixed(1)}\n`;
     });
     text += `\n`;
 
@@ -93,9 +104,11 @@ const App: React.FC = () => {
         .sort((a, b) => (b.openInterest || 0) - (a.openInterest || 0))
         .slice(0, 15);
       topOptions.forEach((opt) => {
-        text += `${opt.type.toUpperCase()}\t$${opt.strike}\t$${
-          opt.lastPrice
-        }\t${opt.openInterest}\t${Math.round(opt.gex || 0).toLocaleString()}\n`;
+        text += `${opt.type.toUpperCase()}\t$${opt.strike.toFixed(
+          2
+        )}\t$${opt.lastPrice.toFixed(2)}\t${opt.openInterest}\t${Math.round(
+          opt.gex || 0
+        ).toLocaleString()}\n`;
       });
     }
 
@@ -115,6 +128,17 @@ const App: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const getCurrentStatus = () => {
+    if (!data) return null;
+    const price = data.currentPrice;
+    return (
+      data.recommendations.find((rec) => price >= rec.min && price < rec.max) ||
+      data.recommendations[data.recommendations.length - 1]
+    );
+  };
+
+  const currentStatus = getCurrentStatus();
 
   if (loading) {
     return (
@@ -156,23 +180,44 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-2 max-w-6xl bg-white min-h-screen font-sans overflow-x-hidden">
-      {" "}
-      <div className="flex items-center w-full justify-center">
-        <img
-          src="/mqa.jpg"
-          alt="mango's qqq analyzer"
-          className="w-40 h-40 my-10"
-        />
-      </div>
+    <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white min-h-screen font-sans overflow-x-hidden">
       <header className="mb-8 border-b pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <p className="text-slate-500 text-sm">
-            QQQ Current Price:{" "}
-            <span className="font-mono font-bold text-blue-600">
-              ${data?.currentPrice?.toFixed(2)}
-            </span>
-          </p>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
+            QQQ Flow Analyzer
+          </h1>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-500 text-sm font-medium">Price:</span>
+              <span className="font-mono text-xl font-black text-slate-900">
+                ${data?.currentPrice?.toFixed(2)}
+              </span>
+            </div>
+            {currentStatus && (
+              <div className="flex items-center gap-2">
+                <span className="hidden sm:inline text-slate-300">|</span>
+                <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                    판단:
+                  </span>
+                  <span
+                    className="px-2 py-0.5 rounded-md text-[11px] font-black text-white uppercase tracking-wider shadow-sm"
+                    style={{ backgroundColor: currentStatus.color }}
+                  >
+                    {currentStatus.status}
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-600 ml-1">
+                    {currentStatus.status === "Strong Buy" ||
+                    currentStatus.status === "Buy"
+                      ? "적극 매수 권장"
+                      : currentStatus.status === "Neutral"
+                      ? "관망 및 보유 추천"
+                      : "분할 매도/리스크 관리 권장"}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <button
@@ -191,8 +236,9 @@ const App: React.FC = () => {
           </button>
         </div>
       </header>
+
       {/* Analysis Table */}
-      <div className="mb-10 overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
+      <div className="mb-10 overflow-x-auto rounded-2xl border border-slate-200 shadow-sm relative">
         <table className="w-full text-left border-collapse min-w-[600px]">
           <thead>
             <tr className="bg-slate-50 border-b">
@@ -208,40 +254,63 @@ const App: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {data?.recommendations.map((rec: Recommendation, index: number) => (
-              <tr
-                key={index}
-                className="border-b last:border-b-0 hover:bg-slate-50 transition-colors"
-              >
-                <td
-                  className="px-6 py-4 font-bold text-sm"
-                  style={{ color: rec.color }}
+            {data?.recommendations.map((rec: Recommendation, index: number) => {
+              const isCurrent = currentStatus?.status === rec.status;
+              return (
+                <tr
+                  key={index}
+                  className={`border-b last:border-b-0 transition-all duration-300 ${
+                    isCurrent
+                      ? "bg-slate-50 ring-2 ring-inset ring-blue-500/20"
+                      : "hover:bg-slate-50/50"
+                  }`}
                 >
-                  <div className="flex items-center gap-2">
-                    {index < 2 ? (
-                      <TrendingUp className="w-4 h-4" />
-                    ) : index === 2 ? (
-                      <Minus className="w-4 h-4" />
-                    ) : (
-                      <TrendingDown className="w-4 h-4" />
-                    )}
-                    {rec.status}
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-slate-600 text-sm">
-                  {rec.description}
-                </td>
-                <td className="px-6 py-4 font-mono font-medium text-slate-800 text-sm">
-                  {rec.priceRange}
-                </td>
-              </tr>
-            ))}
+                  <td
+                    className="px-6 py-4 font-bold text-sm"
+                    style={{ color: rec.color }}
+                  >
+                    <div className="flex items-center gap-2">
+                      {index < 1 ? (
+                        <AlertTriangle className="w-4 h-4" />
+                      ) : index < 3 ? (
+                        <TrendingUp className="w-4 h-4" />
+                      ) : index === 3 ? (
+                        <Minus className="w-4 h-4" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4" />
+                      )}
+                      {rec.status}
+                      {isCurrent && (
+                        <span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      )}
+                    </div>
+                  </td>
+                  <td
+                    className={`px-6 py-4 text-sm ${
+                      isCurrent
+                        ? "text-slate-900 font-semibold"
+                        : "text-slate-600"
+                    }`}
+                  >
+                    {rec.description}
+                  </td>
+                  <td
+                    className={`px-6 py-4 font-mono text-sm ${
+                      isCurrent ? "text-slate-900 font-bold" : "text-slate-800"
+                    }`}
+                  >
+                    {isCurrent && <span className="text-blue-500 mr-2">▶</span>}
+                    {rec.priceRange}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-      {/* Main Charts Section */}
+
+      {/* Charts Section */}
       <div className="space-y-8">
-        {/* Price & GEX Chart */}
         <section className="p-4 md:p-6 border rounded-2xl shadow-sm bg-white overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 border-b pb-4">
             <div>
@@ -320,7 +389,6 @@ const App: React.FC = () => {
                     cursor={{ stroke: "#e2e8f0", strokeWidth: 2 }}
                   />
 
-                  {/* GEX Area */}
                   <Area
                     yAxisId="right"
                     type="monotone"
@@ -331,7 +399,6 @@ const App: React.FC = () => {
                     name="GEX 에너지"
                   />
 
-                  {/* Support/Resistance Lines */}
                   <Line
                     yAxisId="left"
                     type="stepAfter"
@@ -352,8 +419,17 @@ const App: React.FC = () => {
                     dot={{ r: 4, fill: "#3b82f6" }}
                     name="풋 지지선"
                   />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="gammaFlip"
+                    stroke="#94a3b8"
+                    strokeDasharray="3 3"
+                    strokeWidth={1}
+                    dot={false}
+                    name="감마 플립 (Flip)"
+                  />
 
-                  {/* Current Price Reference */}
                   <Line
                     yAxisId="left"
                     type="monotone"
@@ -370,7 +446,6 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        {/* Market Sentiment Chart */}
         <section className="p-4 md:p-6 border rounded-2xl shadow-sm bg-white overflow-hidden">
           <div className="mb-6 border-b pb-4">
             <h2 className="text-xl font-bold text-slate-800">
@@ -424,7 +499,6 @@ const App: React.FC = () => {
                     cursor={{ stroke: "#e2e8f0", strokeWidth: 2 }}
                   />
 
-                  {/* Neutral Zone Reference */}
                   <ReferenceArea
                     y1={-20}
                     y2={20}
@@ -438,7 +512,6 @@ const App: React.FC = () => {
                     strokeOpacity={0.5}
                   />
 
-                  {/* Sentiment Line */}
                   <Line
                     type="monotone"
                     dataKey="sentiment"
@@ -453,7 +526,7 @@ const App: React.FC = () => {
           </div>
         </section>
       </div>
-      {/* Donation & Disclaimer */}
+
       <section className="mt-12 mb-8 p-8 border-2 border-dashed border-blue-100 rounded-3xl bg-blue-50/30 text-center">
         <div className="max-w-md mx-auto">
           <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full mb-4">
@@ -485,6 +558,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </section>
+
       <footer className="mb-12 text-center text-slate-400 text-[10px]">
         <div className="max-w-4xl mx-auto px-4 py-8 border-t border-slate-200">
           <p className="font-bold text-slate-600 mb-3 text-xs uppercase tracking-widest">

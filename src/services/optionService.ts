@@ -17,16 +17,21 @@ export interface Recommendation {
   description: string;
   priceRange: string;
   color: string;
+  min: number;
+  max: number;
 }
 
 export interface TimeSeriesData {
   date: string;
   callResistance: number;
   putSupport: number;
+  gammaFlip: number;
+  volTrigger: number;
   callGex: number;
   putGex: number;
   totalGex: number;
-  pcr: number;
+  pcrAll: number;
+  pcrFiltered: number;
   sentiment: number;
 }
 
@@ -36,6 +41,10 @@ export interface AnalysisResult {
   timeSeries: TimeSeriesData[];
   callResistance: number;
   putSupport: number;
+  totalNetGEX: string;
+  marketRegime: string;
+  gammaFlip: number;
+  volTrigger: number;
   totalGex: number;
   recommendations: Recommendation[];
 }
