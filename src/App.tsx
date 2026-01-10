@@ -153,7 +153,7 @@ const App: React.FC = () => {
           2
         )}) / Ext Sell ($${s.extensionPrice.toFixed(2)}) : +${s.profit.toFixed(
           2
-        )}% / +${s.extensionProfit.toFixed(2)}%\n`;
+        )}% / +${s.extensionProfit.toFixed(2)}% (Prob: ${s.probability}%)\n`;
       });
       text += `\n`;
     }
@@ -616,9 +616,14 @@ const App: React.FC = () => {
                   <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">
                     {scenario.entryDate} → {scenario.exitDate}
                   </span>
-                  <span className="text-sm font-black text-emerald-600">
-                    +{scenario.profit.toFixed(2)}%
-                  </span>
+                  <div className="text-right">
+                    <span className="block text-sm font-black text-emerald-600">
+                      +{scenario.profit.toFixed(2)}%
+                    </span>
+                    <span className="text-[10px] font-bold text-blue-400">
+                      확률: {scenario.probability}%
+                    </span>
+                  </div>
                 </div>
                 <div className="text-xs text-slate-600 font-medium">
                   {scenario.description}

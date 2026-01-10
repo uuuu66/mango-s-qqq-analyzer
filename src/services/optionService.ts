@@ -50,6 +50,7 @@ export interface SwingScenario {
   extensionPrice: number;
   profit: number;
   extensionProfit: number;
+  probability: number;
   description: string;
 }
 

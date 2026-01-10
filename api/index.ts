@@ -386,6 +386,7 @@ interface SwingScenario {
   extensionPrice: number; // Extension Target (최대 목표)
   profit: number; // Base Profit (%)
   extensionProfit: number; // Extension Profit (%)
+  probability: number; // 시나리오 성공 확률 (%)
   description: string;
 }
 
@@ -720,6 +721,22 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const extensionProfit =
             ((extensionTarget - entry.putSupport) / entry.putSupport) * 100;
 
+          // ✅ 시나리오 확률 계산
+          // 1) 청산 시점의 상승 확률 반영
+          // 2) 진입-청산 간 심리 지수 개선도 반영
+          // 3) GEX 에너지 증가 여부 반영
+          const sentimentImprovement = exit.sentiment - entry.sentiment;
+          const gexTrend = exit.totalGex > entry.totalGex ? 5 : -5;
+          let scenarioProb =
+            55 +
+            sentimentImprovement * 0.4 +
+            gexTrend +
+            (exit.priceProbability.up - exit.priceProbability.down) * 0.2;
+
+          // 기간이 길어질수록 불확실성 증가 (보정)
+          scenarioProb -= duration * 2;
+          scenarioProb = Math.round(Math.max(35, Math.min(92, scenarioProb)));
+
           // 수익률이 0보다 큰 경우만 시나리오에 추가
           if (profit > 0) {
             combinations.push({
@@ -730,6 +747,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
               extensionPrice: extensionTarget,
               profit,
               extensionProfit,
+              probability: scenarioProb,
               description: `${duration}일 스윙: ${entryDay}요일 진입 → ${exitDay}요일 목표가 도달 시나리오`,
             });
           }
