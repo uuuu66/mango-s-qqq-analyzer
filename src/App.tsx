@@ -156,7 +156,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto md:p-6 max-w-6xl bg-white min-h-screen font-sans overflow-x-hidden">
+    <div className="container mx-auto p-2 max-w-6xl bg-white min-h-screen font-sans overflow-x-hidden">
       {" "}
       <div className="flex items-center w-full justify-center">
         <img
