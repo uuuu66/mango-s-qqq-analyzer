@@ -117,9 +117,15 @@ const calculateNetGexAtSpot = (
   return options.reduce((acc, opt) => {
     try {
       const adjustedSpot = spot * Math.exp(-DIVIDEND_YIELD * time);
+
+      // ✅ IV 방어 로직 통일 (processOption과 동일)
+      const ivRaw = opt.impliedVolatility;
+      const sigma =
+        typeof ivRaw === "number" && isFinite(ivRaw) && ivRaw > 0 ? ivRaw : 0.2;
+
       const result = blackScholes.option({
         rate: RISK_FREE_RATE,
-        sigma: opt.impliedVolatility || 0.15,
+        sigma: sigma,
         strike: opt.strike,
         time: Math.max(time, 0.0001),
         type: opt.type,
@@ -249,17 +255,20 @@ interface Diagnostics {
 
 const generateRecommendations = (
   support: number,
-  resistance: number
+  resistance: number,
+  currentPrice: number
 ): Recommendation[] => {
   // 지지선과 저항선이 뒤집혀 있거나 동일한 경우 보정
   let low = Math.min(support, resistance);
   let high = Math.max(support, resistance);
 
-  // 지지선과 저항선이 같거나 너무 가까우면(0.5% 미만) 강제로 최소 간격 유지
-  // 이는 옵션 에너지가 특정 행사가에 극도로 몰려 있을 때 UI가 깨지는 것을 방지함
-  if (high - low < low * 0.005) {
-    low = low * 0.995;
-    high = high * 1.005;
+  // ✅ 최소 폭 보정: 0.5% -> 2% (ATR 기반 느낌으로 확장)
+  // 너무 좁은 구간은 매매 실익이 없으므로 최소 2%의 변동 범위를 강제로 확보
+  const minWidth = currentPrice * 0.02;
+  if (high - low < minWidth) {
+    const center = (low + high) / 2;
+    low = center - minWidth / 2;
+    high = center + minWidth / 2;
   }
 
   const mid = (low + high) / 2;
@@ -504,21 +513,16 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           );
 
           // 3) 정석적인 Call Wall / Put Wall 추출
-          // ✅ 절대값(에너지 크기) 기준 최대 지점 추출로 변경하여 0값 붕괴 방어
+          // ✅ Call Wall: 콜 옵션 중 GEX 에너지가 가장 큰(양수 최대) 지점
           const callWall =
-            calls.length > 0 && calls.some((c) => c.gex !== 0)
-              ? calls.reduce(
-                  (p, c) => (Math.abs(c.gex) > Math.abs(p.gex) ? c : p),
-                  calls[0]
-                ).strike
+            calls.length > 0 && calls.some((c) => c.gex > 0)
+              ? calls.reduce((p, c) => (c.gex > p.gex ? c : p), calls[0]).strike
               : currentPrice * 1.05;
 
+          // ✅ Put Wall: 풋 옵션 중 GEX 에너지가 가장 큰(음수 최소) 지점
           const putWall =
-            puts.length > 0 && puts.some((p) => p.gex !== 0)
-              ? puts.reduce(
-                  (p, c) => (Math.abs(c.gex) > Math.abs(p.gex) ? c : p),
-                  puts[0]
-                ).strike
+            puts.length > 0 && puts.some((p) => p.gex < 0)
+              ? puts.reduce((p, c) => (c.gex < p.gex ? c : p), puts[0]).strike
               : currentPrice * 0.95;
 
           const callGex = calls.reduce((acc, opt) => acc + (opt.gex || 0), 0);
@@ -577,6 +581,20 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const pcrFiltered =
             filteredCallOI > 0 ? filteredPutOI / filteredCallOI : 0;
 
+          // ✅ 진단 로그 추가 (Step 1)
+          const zeroGexCalls = calls.filter((c) => c.gex === 0).length;
+          const zeroGexPuts = puts.filter((p) => p.gex === 0).length;
+
+          console.log(
+            `[EXP] ${dateString} | calls: ${calls.length}, puts: ${
+              puts.length
+            } | zeroGex: ${zeroGexCalls}/${zeroGexPuts} | callWall: ${callWall.toFixed(
+              2
+            )}, putWall: ${putWall.toFixed(2)} | flip: ${gammaFlip.toFixed(
+              2
+            )} | totalGex: ${(totalGex / 1e9).toFixed(2)}B`
+          );
+
           diagnostics.details.push({
             date: dateString,
             status: "success",
@@ -633,16 +651,38 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         diagnostics,
       };
 
-    const nearest = validResults[0];
+    // ✅ 가중 평균 레벨 산출 (Step 2)
+    // 단일 만기(0DTE 등)에 의존하지 않고, 전체 만기의 레벨을 시간 가중치(1/sqrt(T))로 통합
+    const calculateWeightedLevel = (
+      items: ExpirationAnalysis[],
+      key: "putSupport" | "callResistance"
+    ) => {
+      let wSum = 0;
+      let vSum = 0;
+      const nowTs = new Date().getTime();
 
-    // ✅ 지지/저항 붕괴 감지 안전장치
-    const collapseThreshold = currentPrice * 0.001; // 0.1% 차이 미만 시 붕괴로 간주
-    const isCollapsed =
-      Math.abs(nearest.putSupport - nearest.callResistance) < collapseThreshold;
+      for (const r of items) {
+        const t = Math.max(
+          (new Date(r.isoDate).getTime() - nowTs) / (1000 * 60 * 60 * 24 * 365),
+          1 / 365
+        );
+        const w = 1 / Math.sqrt(t); // 가까운 만기일수록 큰 가중치
+        wSum += w;
+        vSum += r[key] * w;
+      }
+      return vSum / wSum;
+    };
+
+    const aggSupport = calculateWeightedLevel(validResults, "putSupport");
+    const aggResistance = calculateWeightedLevel(
+      validResults,
+      "callResistance"
+    );
 
     const recommendations = generateRecommendations(
-      nearest.putSupport,
-      nearest.callResistance
+      aggSupport,
+      aggResistance,
+      currentPrice
     );
 
     // 5) 복합 일자별 스윙 시나리오 도출 (다양한 기간 조합 탐색)
@@ -733,18 +773,20 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
     response.json({
       currentPrice,
-      warning: isCollapsed
-        ? "Support/Resistance collapsed. Check IV or Option data availability."
-        : null,
-      options: nearest.options,
-      totalNetGEX: `${(nearest.totalGex / 1e9).toFixed(2)}B USD/1%`,
+      warning:
+        Math.abs(aggSupport - aggResistance) < currentPrice * 0.001
+          ? "Support/Resistance collapsed. Check IV or Option data availability."
+          : null,
+      options: validResults[0].options,
+      totalNetGEX: `${(validResults[0].totalGex / 1e9).toFixed(2)}B USD/1%`,
       // 리서치 제언: 가격이 감마 플립보다 위에 있으면 안정(Stabilizing), 아래면 변동(Volatile)
       marketRegime:
-        currentPrice > nearest.gammaFlip ? "Stabilizing" : "Volatile",
-      gammaFlip: nearest.gammaFlip,
-      volTrigger: nearest.volTrigger,
+        currentPrice > validResults[0].gammaFlip ? "Stabilizing" : "Volatile",
+      gammaFlip: validResults[0].gammaFlip,
+      volTrigger: validResults[0].volTrigger,
       timeSeries: validResults.map((result) => ({
         date: result.date,
+        isoDate: result.isoDate,
         callResistance: result.callResistance,
         putSupport: result.putSupport,
         gammaFlip: result.gammaFlip,
@@ -758,9 +800,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         profitPotential: result.profitPotential,
         priceProbability: result.priceProbability,
       })),
-      callResistance: nearest.callResistance,
-      putSupport: nearest.putSupport,
-      totalGex: nearest.totalGex,
+      callResistance: aggResistance,
+      putSupport: aggSupport,
+      totalGex: validResults[0].totalGex,
       recommendations: recommendations.map((rec) => ({
         ...rec,
         priceRange: `${rec.min.toFixed(2)} - ${rec.max.toFixed(2)}`,

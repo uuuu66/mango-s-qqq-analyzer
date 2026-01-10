@@ -209,7 +209,7 @@ const App: React.FC = () => {
   const currentStatus = getCurrentStatus();
 
   if (loading) {
-    return (
+  return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-50 font-sans">
         <RefreshCw className="w-12 h-12 animate-spin text-blue-500 mb-4" />
         <p className="text-xl font-semibold text-slate-700">
@@ -238,7 +238,7 @@ const App: React.FC = () => {
         <div className="mt-8 p-4 bg-slate-50 rounded-lg text-left max-w-2xl overflow-auto border border-slate-200">
           <p className="text-[10px] font-mono text-slate-400 uppercase mb-2">
             Error Log:
-          </p>
+        </p>
           <pre className="text-[10px] font-mono text-red-600 whitespace-pre-wrap">
             {error}
           </pre>
