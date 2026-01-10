@@ -535,6 +535,7 @@ const App: React.FC = () => {
           <h2 className="text-xl font-bold text-slate-800 mb-2">
             커피 한 잔 선물하기
           </h2>
+          <h3>버그 및 피드백: uuuu66@naver.com</h3>
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-100 mt-4">
             <button
               onClick={() => copyToClipboard("110-417-247456")}
