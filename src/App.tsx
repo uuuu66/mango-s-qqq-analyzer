@@ -148,13 +148,18 @@ const App: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white min-h-screen font-sans overflow-x-hidden">
+      {" "}
+      <div className="flex items-center w-full justify-center">
+        <img
+          src="/mqa.jpg"
+          alt="mango's qqq analyzer"
+          className="w-40 h-40 my-10"
+        />
+      </div>
       <header className="mb-8 border-b pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
-            QQQ Flow Analyzer
-          </h1>
           <p className="text-slate-500 text-sm">
-            Current Price:{" "}
+            QQQ Current Price:{" "}
             <span className="font-mono font-bold text-blue-600">
               ${data?.currentPrice?.toFixed(2)}
             </span>
@@ -177,7 +182,6 @@ const App: React.FC = () => {
           </button>
         </div>
       </header>
-
       {/* Analysis Table */}
       <div className="mb-10 overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
         <table className="w-full text-left border-collapse min-w-[600px]">
@@ -226,7 +230,6 @@ const App: React.FC = () => {
           </tbody>
         </table>
       </div>
-
       {/* Main Charts Section */}
       <div className="space-y-8">
         {/* Price & GEX Chart */}
@@ -441,7 +444,6 @@ const App: React.FC = () => {
           </div>
         </section>
       </div>
-
       {/* Donation & Disclaimer */}
       <section className="mt-12 mb-8 p-8 border-2 border-dashed border-blue-100 rounded-3xl bg-blue-50/30 text-center">
         <div className="max-w-md mx-auto">
@@ -466,7 +468,6 @@ const App: React.FC = () => {
           </div>
         </div>
       </section>
-
       <footer className="mb-12 text-center text-slate-400 text-[10px]">
         <div className="max-w-4xl mx-auto px-4 py-8 border-t border-slate-200">
           <p className="font-bold text-slate-600 mb-3 text-xs uppercase tracking-widest">
