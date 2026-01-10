@@ -31,6 +31,15 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [copySuccess, setCopySuccess] = useState<boolean>(false);
+
+  const copyToClipboard = useCallback((text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    });
+  }, []);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -147,7 +156,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white min-h-screen font-sans overflow-x-hidden">
+    <div className="container mx-auto md:p-6 max-w-6xl bg-white min-h-screen font-sans overflow-x-hidden">
       {" "}
       <div className="flex items-center w-full justify-center">
         <img
@@ -454,16 +463,24 @@ const App: React.FC = () => {
             커피 한 잔 선물하기
           </h2>
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-100 mt-4">
-            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+            <button
+              onClick={() => copyToClipboard("110-417-247456")}
+              className="w-full flex justify-between items-center p-3 bg-slate-50 rounded-xl hover:bg-blue-50 transition-colors group relative"
+            >
               <span className="text-sm font-semibold text-slate-500">
                 신한은행
               </span>
               <span className="text-sm font-black text-slate-800 select-all">
                 110-417-247456
               </span>
-            </div>
+              {copySuccess && (
+                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-3 py-1.5 rounded-lg animate-bounce">
+                  복사되었습니다!
+                </div>
+              )}
+            </button>
             <p className="text-[10px] text-slate-400 mt-3 font-bold uppercase tracking-wider">
-              예금주: 이민기
+              예금주: 이민기 (클릭 시 복사)
             </p>
           </div>
         </div>
