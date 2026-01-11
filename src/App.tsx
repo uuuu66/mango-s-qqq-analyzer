@@ -668,8 +668,7 @@ const App: React.FC = () => {
                   + GEX Trend (방어력 추세 ±5%)
                   <br />
                   + (Up - Down) * 0.2 (청산일 분포)
-                  <br />
-                  - Duration * 2% (기간 불확실성)
+                  <br />- Duration * 2% (기간 불확실성)
                 </code>
               </div>
             </div>
