@@ -63,6 +63,7 @@ export interface TrendForecast {
 
 export interface AnalysisResult {
   currentPrice: number;
+  dataTimestamp?: string;
   options: OptionData[];
   timeSeries: TimeSeriesData[];
   callResistance: number;

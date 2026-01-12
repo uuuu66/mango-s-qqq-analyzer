@@ -417,6 +417,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     diagnostics.step = "fetch_quote";
     const quote = await yahooFinance.quote("QQQ");
     const currentPrice = quote.regularMarketPrice || 0;
+    const dataTimestamp = quote.regularMarketTime
+      ? new Date(quote.regularMarketTime).toISOString()
+      : new Date().toISOString();
     diagnostics.currentPrice = currentPrice;
 
     diagnostics.step = "fetch_expiration_dates";
@@ -808,6 +811,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
     response.json({
       currentPrice,
+      dataTimestamp,
       warning:
         Math.abs(aggSupport - aggResistance) < currentPrice * 0.001
           ? "Support/Resistance collapsed. Check IV or Option data availability."

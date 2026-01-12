@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
 
   // Ticker Analysis States
@@ -58,6 +59,33 @@ const App: React.FC = () => {
     try {
       const result = await fetchQQQData();
       setData(result);
+      if (result.dataTimestamp) {
+        const date = new Date(result.dataTimestamp);
+        setLastUpdated(
+          `${date.getMonth() + 1}월 ${date.getDate()}일 ${date.toLocaleTimeString(
+            "ko-KR",
+            {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: false,
+            }
+          )}`
+        );
+      } else {
+        const date = new Date();
+        setLastUpdated(
+          `${date.getMonth() + 1}월 ${date.getDate()}일 ${date.toLocaleTimeString(
+            "ko-KR",
+            {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: false,
+            }
+          )}`
+        );
+      }
     } catch (err: unknown) {
       console.error("Fetch Error:", err);
       let detailedError = "";
@@ -256,42 +284,56 @@ const App: React.FC = () => {
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white min-h-screen font-sans overflow-x-hidden">
       <header className="mb-8 border-b pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
-            QQQ Flow Analyzer
-          </h1>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 text-sm font-medium">Price:</span>
-              <span className="font-mono text-xl font-black text-slate-900">
-                ${data?.currentPrice?.toFixed(2)}
-              </span>
-            </div>
-            {currentStatus && (
+        <div className="flex items-center gap-4">
+          <img
+            src="/mqa.jpg"
+            alt="MQA Logo"
+            className="w-12 h-12 rounded-xl object-cover shadow-sm border border-slate-100"
+          />
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
+              QQQ Flow Analyzer
+            </h1>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1.5">
               <div className="flex items-center gap-2">
-                <span className="hidden sm:inline text-slate-300">|</span>
-                <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
-                    판단:
+                <span className="text-slate-500 text-sm font-medium">
+                  Price:
+                </span>
+                <span className="font-mono text-xl font-black text-slate-900">
+                  ${data?.currentPrice?.toFixed(2)}
+                </span>
+                {lastUpdated && (
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 ml-1">
+                    {lastUpdated} 데이터입니다.
                   </span>
-                  <span
-                    className="px-2 py-0.5 rounded-md text-[11px] font-black text-white uppercase tracking-wider shadow-sm"
-                    style={{ backgroundColor: currentStatus.color }}
-                  >
-                    {currentStatus.status}
-                  </span>
-                  <span className="text-[11px] font-bold text-slate-600 ml-1">
-                    {currentStatus.status === "Strong Buy"
-                      ? "분할 매수 권장"
-                      : currentStatus.status === "Buy"
-                      ? "매수 or 관망 권장"
-                      : currentStatus.status === "Neutral"
-                      ? "관망 및 보유 추천"
-                      : "분할 매도/리스크 관리 권장"}
-                  </span>
-                </div>
+                )}
               </div>
-            )}
+              {currentStatus && (
+                <div className="flex items-center gap-2">
+                  <span className="hidden sm:inline text-slate-300">|</span>
+                  <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                      판단:
+                    </span>
+                    <span
+                      className="px-2 py-0.5 rounded-md text-[11px] font-black text-white uppercase tracking-wider shadow-sm"
+                      style={{ backgroundColor: currentStatus.color }}
+                    >
+                      {currentStatus.status}
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-600 ml-1">
+                      {currentStatus.status === "Strong Buy"
+                        ? "분할 매수 권장"
+                        : currentStatus.status === "Buy"
+                        ? "매수 or 관망 권장"
+                        : currentStatus.status === "Neutral"
+                        ? "관망 및 보유 추천"
+                        : "분할 매도/리스크 관리 권장"}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
@@ -1085,16 +1127,22 @@ const App: React.FC = () => {
 
               <div className="mt-8 pt-6 border-t border-slate-100">
                 <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-3.5 h-3.5" /> {tickerAnalysis.symbol} 만기별 예상 지지/저항
+                  <TrendingUp className="w-3.5 h-3.5" /> {tickerAnalysis.symbol}{" "}
+                  만기별 예상 지지/저항
                 </h4>
-                {tickerAnalysis.timeSeries && tickerAnalysis.timeSeries.length > 0 ? (
+                {tickerAnalysis.timeSeries &&
+                tickerAnalysis.timeSeries.length > 0 ? (
                   <div className="h-[300px] w-full mt-4">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart
                         data={tickerAnalysis.timeSeries}
                         margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                       >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          vertical={false}
+                          stroke="#f1f5f9"
+                        />
                         <XAxis
                           dataKey="date"
                           tick={{ fontSize: 10, fontWeight: 600 }}
