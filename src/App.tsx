@@ -59,33 +59,26 @@ const App: React.FC = () => {
     try {
       const result = await fetchQQQData();
       setData(result);
-      if (result.dataTimestamp) {
-        const date = new Date(result.dataTimestamp);
-        setLastUpdated(
-          `${date.getMonth() + 1}월 ${date.getDate()}일 ${date.toLocaleTimeString(
-            "ko-KR",
-            {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-              hour12: false,
-            }
-          )}`
-        );
-      } else {
-        const date = new Date();
-        setLastUpdated(
-          `${date.getMonth() + 1}월 ${date.getDate()}일 ${date.toLocaleTimeString(
-            "ko-KR",
-            {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-              hour12: false,
-            }
-          )}`
-        );
-      }
+      const date = result.dataTimestamp
+        ? new Date(result.dataTimestamp)
+        : new Date();
+
+      const formatTime = (tz: string) => {
+        return date.toLocaleString("ko-KR", {
+          timeZone: tz,
+          month: "numeric",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        });
+      };
+
+      const nyTime = formatTime("America/New_York");
+      const krTime = formatTime("Asia/Seoul");
+
+      setLastUpdated(`미국 ${nyTime} (한국 ${krTime})`);
     } catch (err: unknown) {
       console.error("Fetch Error:", err);
       let detailedError = "";
