@@ -99,7 +99,8 @@ const App: React.FC = () => {
         data.callResistance,
         qqqMin,
         qqqMax,
-        betaPeriod
+        betaPeriod,
+        data.timeSeries
       );
       setTickerAnalysis(result);
     } catch (err: unknown) {
@@ -892,6 +893,37 @@ const App: React.FC = () => {
             </p>
           </div>
 
+          <div className="flex flex-wrap gap-2 mb-6 justify-center">
+            <button
+              onClick={() => {
+                setTickerInput("QLD");
+                setBetaPeriod(3);
+                // Trigger search manually if needed, or just let user click
+              }}
+              className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold border border-blue-100 hover:bg-blue-100 transition-colors"
+            >
+              QLD (2x QQQ) 분석
+            </button>
+            <button
+              onClick={() => {
+                setTickerInput("TQQQ");
+                setBetaPeriod(3);
+              }}
+              className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold border border-indigo-100 hover:bg-indigo-100 transition-colors"
+            >
+              TQQQ (3x QQQ) 분석
+            </button>
+            <button
+              onClick={() => {
+                setTickerInput("SQQQ");
+                setBetaPeriod(3);
+              }}
+              className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-100 hover:bg-red-100 transition-colors"
+            >
+              SQQQ (-3x QQQ) 분석
+            </button>
+          </div>
+
           <form
             onSubmit={handleTickerSearch}
             className="flex flex-col sm:flex-row gap-2 mb-6"
@@ -1049,6 +1081,80 @@ const App: React.FC = () => {
                     일일 수익률 기반 정밀 계산
                   </span>
                 </div>
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-slate-100">
+                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-3.5 h-3.5" /> {tickerAnalysis.symbol} 만기별 예상 지지/저항
+                </h4>
+                {tickerAnalysis.timeSeries && tickerAnalysis.timeSeries.length > 0 ? (
+                  <div className="h-[300px] w-full mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart
+                        data={tickerAnalysis.timeSeries}
+                        margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 10, fontWeight: 600 }}
+                          stroke="#64748b"
+                        />
+                        <YAxis
+                          domain={["auto", "auto"]}
+                          tick={{ fontSize: 10, fontWeight: 600 }}
+                          stroke="#64748b"
+                          label={{
+                            value: "Price ($)",
+                            angle: -90,
+                            position: "insideLeft",
+                            fontSize: 10,
+                            fontWeight: 700,
+                          }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            borderRadius: "12px",
+                            border: "none",
+                            boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+                            fontSize: "11px",
+                          }}
+                        />
+                        <Line
+                          type="stepAfter"
+                          dataKey="expectedResistance"
+                          stroke="#ef4444"
+                          strokeDasharray="5 5"
+                          strokeWidth={2}
+                          dot={{ r: 3, fill: "#ef4444" }}
+                          name="예상 저항선"
+                        />
+                        <Line
+                          type="stepAfter"
+                          dataKey="expectedSupport"
+                          stroke="#3b82f6"
+                          strokeDasharray="5 5"
+                          strokeWidth={2}
+                          dot={{ r: 3, fill: "#3b82f6" }}
+                          name="예상 지지선"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey={() => tickerAnalysis.currentPrice}
+                          stroke="#1e293b"
+                          strokeWidth={1}
+                          dot={false}
+                          strokeOpacity={0.3}
+                          name="현재가"
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 text-center py-8">
+                    차트 데이터를 불러올 수 없습니다.
+                  </p>
+                )}
               </div>
 
               {/* Formula Explanation Section */}

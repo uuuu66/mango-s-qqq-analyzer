@@ -77,6 +77,12 @@ export interface AnalysisResult {
   trendForecast?: TrendForecast[];
 }
 
+export interface TickerTimeSeriesData {
+  date: string;
+  expectedSupport: number;
+  expectedResistance: number;
+}
+
 export interface TickerAnalysis {
   symbol: string;
   currentPrice: number;
@@ -86,6 +92,7 @@ export interface TickerAnalysis {
   expectedMin: number;
   expectedMax: number;
   changePercent: number;
+  timeSeries?: TickerTimeSeriesData[];
 }
 
 export const fetchTickerAnalysis = async (
@@ -95,19 +102,25 @@ export const fetchTickerAnalysis = async (
   qqqResistance: number,
   qqqMin: number,
   qqqMax: number,
-  months: number = 3
+  months: number = 3,
+  qqqTimeSeries?: TimeSeriesData[]
 ): Promise<TickerAnalysis> => {
-  const query = new URLSearchParams({
-    symbol,
-    qqqPrice: qqqPrice.toString(),
-    qqqSupport: qqqSupport.toString(),
-    qqqResistance: qqqResistance.toString(),
-    qqqMin: qqqMin.toString(),
-    qqqMax: qqqMax.toString(),
-    months: months.toString(),
+  const response = await fetch(`/api/ticker-analysis`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      symbol,
+      qqqPrice,
+      qqqSupport,
+      qqqResistance,
+      qqqMin,
+      qqqMax,
+      months,
+      qqqTimeSeries,
+    }),
   });
-
-  const response = await fetch(`/api/ticker-analysis?${query}`);
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || "티커 분석 실패");

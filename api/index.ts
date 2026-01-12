@@ -11,6 +11,7 @@ const blackScholes = new BlackScholes();
 const app = express();
 
 app.use(cors());
+app.use(express.json());
 
 const RISK_FREE_RATE = 0.0364; // 2026 SOFR 기준 3.64% 반영
 const DIVIDEND_YIELD = 0.0048; // QQQ 평균 배당 수익률 0.48% 반영
@@ -219,6 +220,12 @@ interface ExpirationAnalysis {
   options: ProcessedOption[];
 }
 
+interface TickerTimeSeriesData {
+  date: string;
+  expectedSupport: number;
+  expectedResistance: number;
+}
+
 interface TickerAnalysis {
   symbol: string;
   currentPrice: number;
@@ -228,6 +235,7 @@ interface TickerAnalysis {
   expectedMin: number;
   expectedMax: number;
   changePercent: number;
+  timeSeries?: TickerTimeSeriesData[];
 }
 
 interface DiagnosticDetail {
@@ -427,7 +435,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
     const now = new Date();
     const filterLimit = new Date();
-    filterLimit.setDate(now.getDate() + 10);
+    filterLimit.setDate(now.getDate() + 14);
 
     const targetExpirations = rawExpirationDates.filter((d) => {
       const expirationDate = new Date(d);
@@ -860,7 +868,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 /**
  * 티커별 베타 기반 기대 지지/저항선 분석 API
  */
-app.get("/api/ticker-analysis", async (req: Request, res: Response) => {
+app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
   const {
     symbol,
     qqqPrice,
@@ -869,7 +877,8 @@ app.get("/api/ticker-analysis", async (req: Request, res: Response) => {
     qqqMin,
     qqqMax,
     months,
-  } = req.query;
+    qqqTimeSeries,
+  } = req.body;
 
   if (!symbol) {
     return res.status(400).json({ error: "티커 심볼이 필요합니다." });
@@ -911,6 +920,20 @@ app.get("/api/ticker-analysis", async (req: Request, res: Response) => {
       ? currentPrice * (1 + beta * (qMax / qPrice - 1))
       : expectedResistance + 10;
 
+    // 타임시리즈 계산 (있는 경우)
+    let tickerTimeSeries: TickerTimeSeriesData[] | undefined = undefined;
+    if (Array.isArray(qqqTimeSeries)) {
+      tickerTimeSeries = qqqTimeSeries.map(
+        (q: { date: string; putSupport: number; callResistance: number }) => ({
+          date: q.date,
+          expectedSupport:
+            currentPrice * (1 + beta * (q.putSupport / qPrice - 1)),
+          expectedResistance:
+            currentPrice * (1 + beta * (q.callResistance / qPrice - 1)),
+        })
+      );
+    }
+
     const analysis: TickerAnalysis = {
       symbol: String(symbol).toUpperCase(),
       currentPrice,
@@ -920,6 +943,7 @@ app.get("/api/ticker-analysis", async (req: Request, res: Response) => {
       expectedMin,
       expectedMax,
       changePercent: quote.regularMarketChangePercent || 0,
+      timeSeries: tickerTimeSeries,
     };
 
     res.json(analysis);
