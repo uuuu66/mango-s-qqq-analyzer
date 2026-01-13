@@ -556,18 +556,19 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     const todayStart = now.startOf("day");
     const filterLimit = todayStart.add(30, "day");
 
-    addLog(`기준 시각(NY): ${now.format("YYYY-MM-DD HH:mm:ss")}`);
+    // ✅ 진단 로그 강화
+    const buildVersion = "2026-01-13-v3"; 
+    addLog(`[System] Version: ${buildVersion}`);
+    addLog(`[System] NY Current: ${now.format("YYYY-MM-DD HH:mm:ss")}`);
 
     const targetExpirations = rawExpirationDates.filter((d) => {
-      // ✅ 시간대 오류 방지: 날짜 문자열(YYYY-MM-DD)만 추출하여 뉴욕 기준 날짜 생성
-      const dateStr = dayjs(d).format("YYYY-MM-DD");
-      const expirationDate = dayjs.tz(dateStr, "America/New_York").startOf("day");
+      // ✅ Yahoo의 d는 UTC 자정입니다. 이를 문자열로 변환하여 뉴욕 오늘 날짜와 직접 비교합니다.
+      const expStr = dayjs(d).utc().format("YYYY-MM-DD");
+      const todayStr = now.format("YYYY-MM-DD");
+      const limitStr = filterLimit.format("YYYY-MM-DD");
       
-      return (
-        (expirationDate.isAfter(todayStart) ||
-          expirationDate.isSame(todayStart)) &&
-        expirationDate.isBefore(filterLimit)
-      );
+      // 과거 날짜(오늘 이전)는 무조건 제외, 오늘부터 30일 이내만 포함
+      return expStr >= todayStr && expStr <= limitStr;
     });
 
     const finalExpirations =
@@ -602,9 +603,12 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             return null;
           }
 
-          // ✅ 잔존 만기 계산 (0DTE 대응: 최소 1시간(약 0.0001년) 확보)
+          // ✅ 잔존 만기 계산 (0DTE 대응)
           const timeDiff = dateObj.diff(now, "year", true);
-          const timeToExpiration = Math.max(timeDiff, 0.0001);
+          
+          // 이미 만료된 경우 (시간이 마감 시간을 지난 경우) 에너지를 0으로 만들기 위해 아주 작은 값 부여 또는 제외
+          const isExpired = timeDiff <= 0;
+          const timeToExpiration = isExpired ? 0.000001 : timeDiff;
 
           // 1) 전체 데이터 기준 PCR 계산 (연구 데이터 대조용)
           const allCallsRaw = expirationData.calls || [];
