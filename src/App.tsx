@@ -164,11 +164,11 @@ const App: React.FC = () => {
     let text = `QQQ Analysis Report - ${new Date().toLocaleString()}\n`;
     text += `==========================================\n\n`;
     text += `[ Summary ]\n`;
-    text += `Current Price: $${data.currentPrice.toFixed(2)}\n`;
+    text += `Current Price: $${data.currentPrice?.toFixed(2)}\n`;
     text += `Total Net GEX: ${data.totalNetGEX}\n`;
     text += `Market Regime: ${data.marketRegime}\n`;
-    text += `Gamma Flip: $${data.gammaFlip.toFixed(2)}\n`;
-    text += `Volatility Trigger: $${data.volTrigger.toFixed(2)}\n\n`;
+    text += `Gamma Flip: $${data.gammaFlip?.toFixed(2)}\n`;
+    text += `Volatility Trigger: $${data.volTrigger?.toFixed(2)}\n\n`;
 
     text += `[ Recommendations ]\n`;
     data.recommendations.forEach((rec) => {
@@ -181,9 +181,9 @@ const App: React.FC = () => {
     data.timeSeries.forEach((item) => {
       text += `${item.date}\t${item.pcrAll.toFixed(
         2
-      )}\t${item.pcrFiltered.toFixed(2)}\t${item.sentiment.toFixed(
+      )}\t${item.pcrFiltered?.toFixed(2)}\t${item.sentiment.toFixed(
         1
-      )}\t${item.profitPotential.toFixed(2)}%\t${
+      )}\t${item.profitPotential?.toFixed(2)}%\t${
         item.priceProbability?.up ?? 0
       }%/${item.priceProbability?.down ?? 0}%/${
         item.priceProbability?.neutral ?? 0
@@ -194,13 +194,13 @@ const App: React.FC = () => {
     if (data.swingScenarios && data.swingScenarios.length > 0) {
       text += `[ Swing Strategy Scenarios ]\n`;
       data.swingScenarios.forEach((s) => {
-        text += `- ${s.entryDate} Buy ($${s.entryPrice.toFixed(2)}) -> ${
+        text += `- ${s.entryDate} Buy ($${s.entryPrice?.toFixed(2)}) -> ${
           s.exitDate
         } Base Sell ($${s.exitPrice.toFixed(
           2
-        )}) / Ext Sell ($${s.extensionPrice.toFixed(2)}) : +${s.profit.toFixed(
+        )}) / Ext Sell ($${s.extensionPrice?.toFixed(2)}) : +${s.profit.toFixed(
           2
-        )}% / +${s.extensionProfit.toFixed(2)}% (Prob: ${s.probability}%)\n`;
+        )}% / +${s.extensionProfit?.toFixed(2)}% (Prob: ${s.probability}%)\n`;
       });
       text += `\n`;
     }
@@ -225,7 +225,7 @@ const App: React.FC = () => {
       topOptions.forEach((opt) => {
         text += `${opt.type.toUpperCase()}\t$${opt.strike.toFixed(
           2
-        )}\t$${opt.lastPrice.toFixed(2)}\t${opt.openInterest}\t${Math.round(
+        )}\t$${opt.lastPrice?.toFixed(2)}\t${opt.openInterest}\t${Math.round(
           opt.gex || 0
         ).toLocaleString()}\n`;
       });
@@ -719,7 +719,7 @@ const App: React.FC = () => {
                     }}
                     formatter={(value: string | number | undefined) => [
                       value !== undefined
-                        ? `$${Number(value).toFixed(2)}B`
+                        ? `$${Number(value)?.toFixed(2)}B`
                         : "0.00B",
                       "",
                     ]}
@@ -771,7 +771,7 @@ const App: React.FC = () => {
                   </span>
                   <div className="text-right">
                     <span className="block text-sm font-black text-emerald-600">
-                      +{scenario.profit.toFixed(2)}%
+                      +{scenario.profit?.toFixed(2)}%
                     </span>
                     <span className="text-[10px] font-bold text-blue-400">
                       확률: {scenario.probability}%
@@ -784,16 +784,16 @@ const App: React.FC = () => {
                 <div className="mt-2 flex flex-col gap-1 text-[11px] font-mono text-slate-500">
                   <div className="flex items-center gap-2">
                     <span className="w-12 text-slate-400 font-bold">진입</span>
-                    <span>Buy @ ${scenario.entryPrice.toFixed(2)}</span>
+                    <span>Buy @ ${scenario.entryPrice?.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-12 text-blue-500 font-bold">기본</span>
-                    <span>Sell @ ${scenario.exitPrice.toFixed(2)}</span>
+                    <span>Sell @ ${scenario.exitPrice?.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-12 text-red-500 font-bold">확장</span>
                     <span>
-                      Sell @ ${scenario.extensionPrice.toFixed(2)}
+                      Sell @ ${scenario.extensionPrice?.toFixed(2)}
                       (조건부)
                     </span>
                   </div>
@@ -969,11 +969,11 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <span className="font-bold text-blue-600">
-                      Buy @ ${item.putSupport.toFixed(2)}
+                      Buy @ ${item.putSupport?.toFixed(2)}
                     </span>
                     <span className="text-slate-300">→</span>
                     <span className="font-bold text-red-600">
-                      Sell @ ${item.callResistance.toFixed(2)}
+                      Sell @ ${item.callResistance?.toFixed(2)}
                     </span>
                   </div>
                   {/* QQQ Probability Mini Bars */}
@@ -1013,7 +1013,7 @@ const App: React.FC = () => {
                   <div className="text-lg font-black text-emerald-600">
                     {item.profitPotential <= 0
                       ? "Range-bound"
-                      : `+${item.profitPotential.toFixed(2)}%`}
+                      : `+${item.profitPotential?.toFixed(2)}%`}
                   </div>
                 </div>
               </div>
@@ -1037,7 +1037,7 @@ const App: React.FC = () => {
                 감마 플립 (Gamma Flip)
               </div>
               <div className="text-xl font-black text-amber-900">
-                ${data?.gammaFlip.toFixed(2)}
+                ${data?.gammaFlip?.toFixed(2)}
               </div>
               <p className="text-[11px] text-amber-700 mt-1">
                 이 가격 아래로 하락 시 시장의 변동성이 급격히 확대되는
@@ -1049,7 +1049,7 @@ const App: React.FC = () => {
                 변동성 트리거 (Volatility Trigger)
               </div>
               <div className="text-xl font-black text-rose-900">
-                ${data?.volTrigger.toFixed(2)}
+                ${data?.volTrigger?.toFixed(2)}
               </div>
               <p className="text-[11px] text-rose-700 mt-1">
                 감마 플립 하단 지지선으로, 돌파 시 패닉 셀링이 가속화될 수
@@ -1172,7 +1172,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-mono font-black text-slate-900">
-                    ${tickerAnalysis.currentPrice.toFixed(2)}
+                    ${tickerAnalysis.currentPrice?.toFixed(2)}
                   </div>
                   <div
                     className={`text-sm font-bold ${
@@ -1182,7 +1182,7 @@ const App: React.FC = () => {
                     }`}
                   >
                     {tickerAnalysis.changePercent >= 0 ? "+" : ""}
-                    {tickerAnalysis.changePercent.toFixed(2)}%
+                    {tickerAnalysis.changePercent?.toFixed(2)}%
                   </div>
                 </div>
               </div>
@@ -1195,10 +1195,10 @@ const App: React.FC = () => {
                       최저 위험선 (Extreme Risk)
                     </div>
                     <div className="text-2xl font-mono font-black text-slate-700">
-                      ${tickerAnalysis.expectedMin.toFixed(2)}
+                      ${tickerAnalysis.expectedMin?.toFixed(2)}
                     </div>
                     <p className="text-[11px] text-slate-500 mt-2 font-medium">
-                      QQQ가 ${data?.recommendations[0].max.toFixed(2)}까지
+                      QQQ가 ${data?.recommendations[0].max?.toFixed(2)}까지
                       폭락할 때
                     </p>
                   </div>
@@ -1208,10 +1208,10 @@ const App: React.FC = () => {
                       예상 지지선 (Support)
                     </div>
                     <div className="text-2xl font-mono font-black text-blue-900">
-                      ${tickerAnalysis.expectedSupport.toFixed(2)}
+                      ${tickerAnalysis.expectedSupport?.toFixed(2)}
                     </div>
                     <p className="text-[11px] text-blue-600/70 mt-2 font-medium">
-                      QQQ가 ${data?.putSupport.toFixed(2)}까지 밀릴 때
+                      QQQ가 ${data?.putSupport?.toFixed(2)}까지 밀릴 때
                     </p>
                   </div>
                 </div>
@@ -1223,10 +1223,10 @@ const App: React.FC = () => {
                       예상 저항선 (Resistance)
                     </div>
                     <div className="text-2xl font-mono font-black text-red-900">
-                      ${tickerAnalysis.expectedResistance.toFixed(2)}
+                      ${tickerAnalysis.expectedResistance?.toFixed(2)}
                     </div>
                     <p className="text-[11px] text-red-600/70 mt-2 font-medium">
-                      QQQ가 ${data?.callResistance.toFixed(2)}까지 오를 때
+                      QQQ가 ${data?.callResistance?.toFixed(2)}까지 오를 때
                     </p>
                   </div>
 
@@ -1235,10 +1235,10 @@ const App: React.FC = () => {
                       최대 목표선 (Strong Sell)
                     </div>
                     <div className="text-2xl font-mono font-black text-orange-900">
-                      ${tickerAnalysis.expectedMax.toFixed(2)}
+                      ${tickerAnalysis.expectedMax?.toFixed(2)}
                     </div>
                     <p className="text-[11px] text-orange-600/70 mt-2 font-medium">
-                      QQQ가 ${data?.recommendations[5].max.toFixed(2)}까지
+                      QQQ가 ${data?.recommendations[5].max?.toFixed(2)}까지
                       과열될 때
                     </p>
                   </div>
@@ -1251,7 +1251,7 @@ const App: React.FC = () => {
                 </span>
                 <div className="flex flex-col items-end">
                   <span className="font-mono font-bold text-slate-700 bg-white px-3 py-1 rounded-lg border border-slate-200">
-                    {tickerAnalysis.beta.toFixed(2)}
+                    {tickerAnalysis.beta?.toFixed(2)}
                   </span>
                   <span className="text-[9px] text-slate-400 mt-1 font-medium">
                     *최근{" "}
@@ -1283,7 +1283,7 @@ const App: React.FC = () => {
                             </span>
                             <div className="text-right">
                               <span className="block text-sm font-black text-emerald-600">
-                                +{scenario.profit.toFixed(2)}%
+                                +{scenario.profit?.toFixed(2)}%
                               </span>
                             </div>
                           </div>
@@ -1294,19 +1294,19 @@ const App: React.FC = () => {
                             <div className="flex justify-between items-center text-slate-500">
                               <span>진입가</span>
                               <span className="font-bold text-slate-700">
-                                ${scenario.entryPrice.toFixed(2)}
+                                ${scenario.entryPrice?.toFixed(2)}
                               </span>
                             </div>
                             <div className="flex justify-between items-center text-blue-500">
                               <span>기본 목표</span>
                               <span className="font-bold text-blue-700">
-                                ${scenario.exitPrice.toFixed(2)}
+                                ${scenario.exitPrice?.toFixed(2)}
                               </span>
                             </div>
                             <div className="flex justify-between items-center text-red-500">
                               <span>확장 목표</span>
                               <span className="font-bold text-red-700">
-                                ${scenario.extensionPrice.toFixed(2)}
+                                ${scenario.extensionPrice?.toFixed(2)}
                               </span>
                             </div>
                           </div>
@@ -1418,8 +1418,8 @@ const App: React.FC = () => {
                                     {tickerAnalysis.beta >= 0 ? "Buy" : "Short"}{" "}
                                     @ $
                                     {tickerAnalysis.beta >= 0
-                                      ? item.expectedSupport.toFixed(2)
-                                      : item.expectedResistance.toFixed(2)}
+                                      ? item.expectedSupport?.toFixed(2)
+                                      : item.expectedResistance?.toFixed(2)}
                                   </span>
                                   <span className="text-slate-300">→</span>
                                   <span
@@ -1431,8 +1431,8 @@ const App: React.FC = () => {
                                   >
                                     $
                                     {tickerAnalysis.beta >= 0
-                                      ? item.expectedResistance.toFixed(2)
-                                      : item.expectedSupport.toFixed(2)}
+                                      ? item.expectedResistance?.toFixed(2)
+                                      : item.expectedSupport?.toFixed(2)}
                                   </span>
                                 </div>
                                 {/* Ticker Probability Mini Bars */}
@@ -1469,7 +1469,7 @@ const App: React.FC = () => {
                                 <div className="text-[11px] font-black text-emerald-600">
                                   {item.profitPotential <= 0
                                     ? "Range-bound"
-                                    : `+${item.profitPotential.toFixed(2)}%`}
+                                    : `+${item.profitPotential?.toFixed(2)}%`}
                                 </div>
                               </div>
                             </div>

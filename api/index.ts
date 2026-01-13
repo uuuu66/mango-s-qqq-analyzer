@@ -167,12 +167,11 @@ const findTrueGammaFlip = (
     const currentGex = calculateNetGexAtSpot(options, spot, time);
     // 부호가 바뀌는 구간(0 교차점) 발견
     if (prevGex * currentGex <= 0) {
+      const totalAbsGex = Math.abs(prevGex) + Math.abs(currentGex);
+      if (totalAbsGex === 0) return (prevSpot + spot) / 2; // 0으로 나누기 방지
+
       // 선형 보간으로 더 정밀한 0 지점 추정
-      return (
-        prevSpot +
-        (spot - prevSpot) *
-          (Math.abs(prevGex) / (Math.abs(prevGex) + Math.abs(currentGex)))
-      );
+      return prevSpot + (spot - prevSpot) * (Math.abs(prevGex) / totalAbsGex);
     }
     prevSpot = spot;
     prevGex = currentGex;
@@ -266,6 +265,7 @@ interface Diagnostics {
   currentPrice: number | null;
   expirationsCount: number;
   details: DiagnosticDetail[];
+  serverLogs: string[]; // 프론트엔드로 보낼 서버 로그 저장용
 }
 
 const generateRecommendations = (
@@ -340,25 +340,87 @@ const generateRecommendations = (
   ];
 };
 
+/**
+ * Newton-Raphson 방식을 이용한 내재 변동성(IV) 역산 함수
+ */
+const calculateImpliedVolatility = (
+  targetPrice: number,
+  params: {
+    strike: number;
+    time: number;
+    type: "call" | "put";
+    underlying: number;
+    rate: number;
+  }
+): number => {
+  let sigma = 0.2; // 초기 추정값 (20%)
+  const maxIterations = 20;
+  const precision = 0.0001;
+
+  for (let i = 0; i < maxIterations; i++) {
+    const result = blackScholes.option({
+      ...params,
+      sigma,
+    });
+
+    const diff = result.price - targetPrice;
+    if (Math.abs(diff) < precision) return sigma;
+
+    // 베가(Vega) 계산: 변동성이 1% 변할 때 옵션 가격의 변화
+    // 직접적인 베가 함수가 없을 경우 수치 미분으로 근사
+    const epsilon = 0.001;
+    const resultNext = blackScholes.option({
+      ...params,
+      sigma: sigma + epsilon,
+    });
+    const vega = (resultNext.price - result.price) / epsilon;
+
+    if (Math.abs(vega) < 0.00001) break; // 계산 불능 시 중단
+
+    sigma = sigma - diff / vega;
+    if (sigma <= 0) sigma = 0.0001; // 변동성은 음수가 될 수 없음
+    if (sigma > 5) sigma = 5; // 과도한 변동성 방지
+  }
+
+  return sigma;
+};
+
 const processOption = (
   option: OptionDataInput,
   type: "call" | "put",
   spotPrice: number,
   timeToExpiration: number
 ): ProcessedOption => {
+  // console.log(`[PROCESS] calling blackscholes for strike ${option.strike}`);
   const strike = Number(option.strike);
-  const openInterest = Number(option.openInterest ?? 0);
+  // ✅ OI가 0인 경우 거래량(volume)을 일부 참고하여 에너지 계산 가능하도록 보정
+  const openInterest =
+    Number(option.openInterest) > 0
+      ? Number(option.openInterest)
+      : Number(option.volume) > 0
+      ? Number(option.volume) * 0.1
+      : 1;
 
-  // ✅ null/NaN/0 방어: IV가 유효하지 않으면 기본값 0.2(20%) 사용
+  const adjustedSpot = spotPrice * Math.exp(-DIVIDEND_YIELD * timeToExpiration);
   const ivRaw = option.impliedVolatility;
-  const impliedVolatility =
-    typeof ivRaw === "number" && isFinite(ivRaw) && ivRaw > 0 ? ivRaw : 0.2;
+
+  let impliedVolatility: number;
+
+  // ✅ IV 데이터가 비정상(0.001 미만)인 경우 직접 역산 시도
+  if (typeof ivRaw !== "number" || !isFinite(ivRaw) || ivRaw < 0.001) {
+    impliedVolatility = calculateImpliedVolatility(option.lastPrice, {
+      strike,
+      time: Math.max(timeToExpiration, 0.0001),
+      type,
+      underlying: adjustedSpot,
+      rate: RISK_FREE_RATE,
+    });
+  } else {
+    impliedVolatility = ivRaw;
+  }
 
   let gamma = 0;
   try {
-    const adjustedSpot =
-      spotPrice * Math.exp(-DIVIDEND_YIELD * timeToExpiration);
-
     const result = blackScholes.option({
       rate: RISK_FREE_RATE,
       sigma: impliedVolatility,
@@ -418,18 +480,27 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     currentPrice: null,
     expirationsCount: 0,
     details: [],
+    serverLogs: [],
+  };
+
+  const addLog = (msg: string) => {
+    console.log(msg);
+    diagnostics.serverLogs.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
   };
 
   try {
     diagnostics.step = "fetch_quote";
+    addLog("QQQ 시세 데이터 가져오는 중...");
     const quote = await yahooFinance.quote("QQQ");
     const currentPrice = quote.regularMarketPrice || 0;
     const dataTimestamp = quote.regularMarketTime
       ? new Date(quote.regularMarketTime).toISOString()
       : new Date().toISOString();
     diagnostics.currentPrice = currentPrice;
+    addLog(`현재가: $${currentPrice.toFixed(2)}`);
 
     diagnostics.step = "fetch_expiration_dates";
+    addLog("QQQ 옵션 만기일 목록 가져오는 중...");
     const optionChain = await yahooFinance.options("QQQ");
 
     if (
@@ -442,6 +513,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
     const rawExpirationDates = optionChain.expirationDates;
     diagnostics.expirationsCount = rawExpirationDates.length;
+    addLog(
+      `총 ${rawExpirationDates.length}개의 만기일 발견`
+    );
 
     const now = new Date();
     const filterLimit = new Date();
@@ -533,18 +607,30 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             )
           );
 
-          // 3) 정석적인 Call Wall / Put Wall 추출
-          // ✅ Call Wall: 콜 옵션 중 GEX 에너지가 가장 큰(양수 최대) 지점
-          const callWall =
-            calls.length > 0 && calls.some((c) => c.gex > 0)
-              ? calls.reduce((p, c) => (c.gex > p.gex ? c : p), calls[0]).strike
-              : currentPrice * 1.05;
+          // 필터링된 데이터 기준 OI (확률 계산 및 Wall 추출용)
+          const filteredCallOI = calls.reduce(
+            (acc, opt) => acc + (opt.openInterest || 0),
+            0
+          );
+          const filteredPutOI = puts.reduce(
+            (acc, opt) => acc + (opt.openInterest || 0),
+            0
+          );
 
-          // ✅ Put Wall: 풋 옵션 중 GEX 에너지가 가장 큰(음수 최소) 지점
+          // 3) 주요 매물대(Wall) 추출 - 수량(Open Interest) 및 에너지 복합 분석
+          // ✅ Call Wall: 현재가보다 높은 행사가 중 미결제약정(OI)이 가장 큰 지점 (강한 저항선)
+          const callOptions = calls.filter(c => c.strike >= currentPrice);
+          const callWall =
+            callOptions.length > 0
+              ? callOptions.reduce((p, c) => ((c.openInterest ?? 0) > (p.openInterest ?? 0) ? c : p), callOptions[0]).strike
+              : currentPrice * 1.02;
+
+          // ✅ Put Wall: 현재가보다 낮은 행사가 중 미결제약정(OI)이 가장 큰 지점 (강한 지지선)
+          const putOptions = puts.filter(p => p.strike <= currentPrice);
           const putWall =
-            puts.length > 0 && puts.some((p) => p.gex < 0)
-              ? puts.reduce((p, c) => (c.gex < p.gex ? c : p), puts[0]).strike
-              : currentPrice * 0.95;
+            putOptions.length > 0
+              ? putOptions.reduce((p, c) => ((c.openInterest ?? 0) > (p.openInterest ?? 0) ? c : p), putOptions[0]).strike
+              : currentPrice * 0.98;
 
           const callGex = calls.reduce((acc, opt) => acc + (opt.gex || 0), 0);
           const putGex = puts.reduce((acc, opt) => acc + (opt.gex || 0), 0);
@@ -558,8 +644,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           );
           const volTrigger = gammaFlip * 0.985;
 
-          // 5) 옵션 분포 기반 가격 변동 확률 계산 (새로 추가된 로직)
-          // 콜 옵션의 총 긍정적 에너지 vs 풋 옵션의 총 부정적 에너지 비율 분석
+          // 5) 옵션 분포 기반 가격 변동 확률 계산
           const totalCallEnergy = calls.reduce(
             (acc, opt) => acc + Math.max(0, opt.gex),
             0
@@ -574,31 +659,30 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           let downProb = 50;
           let neutralProb = 0;
 
-          if (totalEnergy > 0) {
-            // 기본적인 GEX 비율
+          // ✅ 1순위: GEX 에너지 기반 계산 시도
+          if (totalEnergy > 0.0001) {
             upProb = (totalCallEnergy / totalEnergy) * 100;
             downProb = (totalPutEnergy / totalEnergy) * 100;
 
-            // 중립(횡보) 확률: 현재가 주변 GEX가 낮고 외가격에 에너지가 분산된 경우
-            neutralProb = Math.max(
-              0,
-              100 - Math.abs(upProb - downProb) * 1.5 - 20
-            );
+            neutralProb = Math.max(0, 100 - Math.abs(upProb - downProb) * 1.5 - 20);
+            const remaining = 100 - neutralProb;
+            const ratio = upProb / (upProb + downProb);
+            upProb = remaining * ratio;
+            downProb = remaining * (1 - ratio);
+          } 
+          // ✅ 2순위: 에너지가 증발했으면 수량(Open Interest) 기반으로 즉시 전환
+          else if (filteredCallOI + filteredPutOI > 0) {
+            const totalOI = filteredCallOI + filteredPutOI;
+            upProb = (filteredCallOI / totalOI) * 100;
+            downProb = (filteredPutOI / totalOI) * 100;
+            neutralProb = 15;
+            
             const remaining = 100 - neutralProb;
             const ratio = upProb / (upProb + downProb);
             upProb = remaining * ratio;
             downProb = remaining * (1 - ratio);
           }
 
-          // 필터링된 데이터 기준 PCR
-          const filteredCallOI = calls.reduce(
-            (acc, opt) => acc + (opt.openInterest || 0),
-            0
-          );
-          const filteredPutOI = puts.reduce(
-            (acc, opt) => acc + (opt.openInterest || 0),
-            0
-          );
           const pcrFiltered =
             filteredCallOI > 0 ? filteredPutOI / filteredCallOI : 0;
 
