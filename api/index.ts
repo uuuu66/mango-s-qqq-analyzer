@@ -980,28 +980,30 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       const first = validResults[0];
       const last = validResults[validResults.length - 1];
 
-      const sentimentDiff = last.sentiment - first.sentiment;
-      const gexDiff = last.totalGex - first.totalGex;
+      // 전체 가격 변동 확인
+      const lastPriceLevel = getPriceLevel(last);
+      const totalRelDiff = (lastPriceLevel - currentPrice) / currentPrice;
 
       let direction: "상승" | "하락" | "횡보" = "횡보";
       let prob = 50;
       let desc = "";
 
-      if (sentimentDiff > 10 && gexDiff > 0) {
+      // 가격 변동과 심리 지수를 복합하여 전체 추세 결정
+      if (totalRelDiff > 0.005 && sentimentDiff > 5) {
         direction = "상승";
         prob = Math.min(65 + sentimentDiff / 2, 92);
         desc =
-          "심리 지수와 GEX 에너지가 동반 상승 중이며, 매수세가 점진적으로 강화되는 추세입니다.";
-      } else if (sentimentDiff < -10 && gexDiff < 0) {
+          "전체적인 가격 레벨이 상승 추세에 있으며, 매수 심리 또한 점진적으로 개선되고 있습니다.";
+      } else if (totalRelDiff < -0.005 && sentimentDiff < -5) {
         direction = "하락";
         prob = Math.min(65 + Math.abs(sentimentDiff) / 2, 92);
         desc =
-          "심리 지수가 악화되고 GEX 방어력이 약화되고 있어, 매도 압력이 우세한 구간입니다.";
+          "전체적인 가격 레벨이 하향 조정 중이며, 매도 압력이 우세한 구간입니다.";
       } else {
         direction = "횡보";
         prob = 70;
         desc =
-          "에너지가 특정 방향으로 쏠리지 않고 박스권 내에서 힘겨루기가 진행 중입니다.";
+          "가격 변동폭이 제한적이거나 에너지 방향이 엇갈리고 있어, 박스권 내 힘겨루기가 진행 중입니다.";
       }
 
       trendForecast.push({
@@ -1011,9 +1013,53 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         description: desc,
       });
 
-      // ✅ 세부 구간별 상승/하락 추세 도출
-      // ... (기존 segmentedTrends 로직)
-      // ...
+      // ✅ 세부 구간별 상승/하락 추세 도출 (가격 레벨 이동 기준 반영)
+      const getPriceLevel = (r: ExpirationAnalysis) => (r.putSupport + r.callResistance) / 2;
+      
+      const trendPoints = [
+        { date: "현재", price: currentPrice, sentiment: validResults[0].sentiment }, // 기준점
+        ...validResults.map(r => ({ date: r.date, price: getPriceLevel(r), sentiment: r.sentiment }))
+      ];
+
+      let currentStartIdx = 0;
+      for (let i = 1; i < trendPoints.length; i++) {
+        const prev = trendPoints[i - 1];
+        const curr = trendPoints[i];
+        
+        const priceDiff = curr.price - prev.price;
+        const sDiff = curr.sentiment - prev.sentiment;
+        
+        let segmentDir: "상승" | "하락" | "횡보" = "횡보";
+        // 가격 이동을 최우선으로 판정 (0.1% 이상 변동 시)
+        if (priceDiff > currentPrice * 0.001) {
+          segmentDir = sDiff > -5 ? "상승" : "횡보"; // 가격은 오르는데 심리가 너무 꺾이면 횡보로 보정
+        } else if (priceDiff < -currentPrice * 0.001) {
+          segmentDir = sDiff < 5 ? "하락" : "횡보"; // 가격은 내리는데 심리가 살아나면 횡보(눌림목)로 보정
+        }
+
+        const isLast = i === trendPoints.length - 1;
+        // 다음 지점의 방향 확인 (루프 통합을 위해)
+        let nextDir: "상승" | "하락" | "횡보" | null = null;
+        if (!isLast) {
+          const nextPriceDiff = trendPoints[i+1].price - curr.price;
+          const nextSDiff = trendPoints[i+1].sentiment - curr.sentiment;
+          if (nextPriceDiff > currentPrice * 0.001) nextDir = nextSDiff > -5 ? "상승" : "횡보";
+          else if (nextPriceDiff < -currentPrice * 0.001) nextDir = nextSDiff < 5 ? "하락" : "횡보";
+          else nextDir = "횡보";
+        }
+
+        if (isLast || segmentDir !== nextDir) {
+          segmentedTrends.push({
+            startDate: trendPoints[currentStartIdx].date === "현재" ? "현재" : trendPoints[currentStartIdx].date,
+            endDate: curr.date,
+            direction: segmentDir,
+            description: segmentDir === "상승" 
+              ? `가격 레벨 상향 및 매수세 강화 구간` 
+              : (segmentDir === "하락" ? `가격 레벨 하향 및 매도 압력 구간` : `에너지 균형 및 박스권 구간`),
+          });
+          currentStartIdx = i;
+        }
+      }
     }
 
     // ✅ 감마 심리 로드맵 (Sentiment Roadmap) 산출
