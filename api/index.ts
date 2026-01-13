@@ -559,8 +559,10 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     addLog(`기준 시각(NY): ${now.format("YYYY-MM-DD HH:mm:ss")}`);
 
     const targetExpirations = rawExpirationDates.filter((d) => {
-      const expirationDate = dayjs(d).tz("America/New_York");
-      // 날짜가 오늘 이후이거나 오늘인 경우 포함
+      // ✅ 시간대 오류 방지: 날짜 문자열(YYYY-MM-DD)만 추출하여 뉴욕 기준 날짜 생성
+      const dateStr = dayjs(d).format("YYYY-MM-DD");
+      const expirationDate = dayjs.tz(dateStr, "America/New_York").startOf("day");
+      
       return (
         (expirationDate.isAfter(todayStart) ||
           expirationDate.isSame(todayStart)) &&
@@ -576,17 +578,18 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     diagnostics.step = "process_expirations";
     const results = await Promise.all(
       finalExpirations.map(async (d) => {
+        const originalDate = d; // ✅ 야후 API 호출용 원본 객체 보존
         const dateString = String(d);
         try {
-          // ✅ 만기 시간을 해당 날짜의 뉴욕 장 마감 시간(16:00)으로 설정
-          const dateObj = dayjs(dateString)
+          // ✅ 내부 계산용: 만기 시간을 해당 날짜의 뉴욕 장 마감 시간(16:00)으로 설정
+          const dateObj = dayjs(originalDate)
             .tz("America/New_York")
             .hour(16)
             .minute(0)
             .second(0);
           
           const details = await yahooFinance.options("QQQ", {
-            date: dateObj.toDate(),
+            date: originalDate, // ✅ 야후 API에는 원래의 Date 객체 전달 (no_data 방지)
           });
 
           const expirationData = details?.options?.[0];
