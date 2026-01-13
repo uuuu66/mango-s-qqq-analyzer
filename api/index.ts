@@ -513,13 +513,15 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
     const rawExpirationDates = optionChain.expirationDates;
     diagnostics.expirationsCount = rawExpirationDates.length;
-    addLog(
-      `총 ${rawExpirationDates.length}개의 만기일 발견`
-    );
+    addLog(`총 ${rawExpirationDates.length}개의 만기일 발견`);
 
     const now = new Date();
     // ✅ 오늘 만기 데이터(0DTE)를 포함하기 위해 비교용 시간을 오늘 자정으로 설정
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
     const filterLimit = new Date(todayStart);
     filterLimit.setDate(todayStart.getDate() + 30);
 
@@ -626,17 +628,25 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
           // 3) 주요 매물대(Wall) 추출 - 수량(Open Interest) 및 에너지 복합 분석
           // ✅ Call Wall: 현재가보다 높은 행사가 중 미결제약정(OI)이 가장 큰 지점 (강한 저항선)
-          const callOptions = calls.filter(c => c.strike >= currentPrice);
+          const callOptions = calls.filter((c) => c.strike >= currentPrice);
           const callWall =
             callOptions.length > 0
-              ? callOptions.reduce((p, c) => ((c.openInterest ?? 0) > (p.openInterest ?? 0) ? c : p), callOptions[0]).strike
+              ? callOptions.reduce(
+                  (p, c) =>
+                    (c.openInterest ?? 0) > (p.openInterest ?? 0) ? c : p,
+                  callOptions[0]
+                ).strike
               : currentPrice * 1.02;
 
           // ✅ Put Wall: 현재가보다 낮은 행사가 중 미결제약정(OI)이 가장 큰 지점 (강한 지지선)
-          const putOptions = puts.filter(p => p.strike <= currentPrice);
+          const putOptions = puts.filter((p) => p.strike <= currentPrice);
           const putWall =
             putOptions.length > 0
-              ? putOptions.reduce((p, c) => ((c.openInterest ?? 0) > (p.openInterest ?? 0) ? c : p), putOptions[0]).strike
+              ? putOptions.reduce(
+                  (p, c) =>
+                    (c.openInterest ?? 0) > (p.openInterest ?? 0) ? c : p,
+                  putOptions[0]
+                ).strike
               : currentPrice * 0.98;
 
           const callGex = calls.reduce((acc, opt) => acc + (opt.gex || 0), 0);
@@ -671,19 +681,22 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             upProb = (totalCallEnergy / totalEnergy) * 100;
             downProb = (totalPutEnergy / totalEnergy) * 100;
 
-            neutralProb = Math.max(0, 100 - Math.abs(upProb - downProb) * 1.5 - 20);
+            neutralProb = Math.max(
+              0,
+              100 - Math.abs(upProb - downProb) * 1.5 - 20
+            );
             const remaining = 100 - neutralProb;
             const ratio = upProb / (upProb + downProb);
             upProb = remaining * ratio;
             downProb = remaining * (1 - ratio);
-          } 
+          }
           // ✅ 2순위: 에너지가 증발했으면 수량(Open Interest) 기반으로 즉시 전환
           else if (filteredCallOI + filteredPutOI > 0) {
             const totalOI = filteredCallOI + filteredPutOI;
             upProb = (filteredCallOI / totalOI) * 100;
             downProb = (filteredPutOI / totalOI) * 100;
             neutralProb = 15;
-            
+
             const remaining = 100 - neutralProb;
             const ratio = upProb / (upProb + downProb);
             upProb = remaining * ratio;
