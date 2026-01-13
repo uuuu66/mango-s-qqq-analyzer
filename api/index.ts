@@ -273,8 +273,9 @@ interface TickerAnalysis {
   changePercent: number;
   timeSeries?: TickerTimeSeriesData[];
   swingScenarios?: SwingScenario[];
-  segmentedTrends?: SegmentedTrend[]; // ✅ 추가된 필드
-  sentimentRoadmap?: SentimentRoadmap[]; // ✅ 추가된 필드
+  segmentedTrends?: SegmentedTrend[];
+  sentimentRoadmap?: SentimentRoadmap[];
+  trendForecast?: TrendForecast[]; // ✅ 추가된 필드
 }
 
 interface DiagnosticDetail {
@@ -1111,7 +1112,8 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
     qqqTimeSeries,
     qqqSwingScenarios,
     qqqSegmentedTrends,
-    qqqSentimentRoadmap, // ✅ 추가된 필드
+    qqqSentimentRoadmap,
+    qqqTrendForecast, // ✅ 추가된 필드
   } = req.body;
 
   if (!symbol) {
@@ -1249,7 +1251,7 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
       });
     }
 
-    // ✅ 세부 구간별 상승/하락 추세 계산 (베타 보정)
+    // ✅ 세부 구간별 상승/하락 추세 계산 (인버스 완벽 대응)
     let tickerSegmentedTrends: SegmentedTrend[] | undefined = undefined;
     if (Array.isArray(qqqSegmentedTrends)) {
       tickerSegmentedTrends = qqqSegmentedTrends.map((s: SegmentedTrend) => {
@@ -1257,10 +1259,13 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
         let description = s.description;
 
         if (beta < 0) {
-          // 인버스 종목은 방향 반전
+          // 인버스 종목은 방향 및 심리 완벽 반전
           if (direction === "상승") direction = "하락";
           else if (direction === "하락") direction = "상승";
-          description = description.replace("매수 우위", "매도 압력").replace("매도 압력", "매수 우위");
+          
+          description = description
+            .replace("매수 우위", "TMP_BUY").replace("매도 압력", "매수 우위").replace("TMP_BUY", "매도 압력")
+            .replace("상향", "TMP_UP").replace("하향", "상향").replace("TMP_UP", "하향");
         }
 
         return {
@@ -1271,16 +1276,43 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
       });
     }
 
-    // ✅ 감마 심리 로드맵 계산 (베타 보정)
+    // ✅ 감마 심리 로드맵 계산 (인버스 완벽 대응)
     let tickerSentimentRoadmap: SentimentRoadmap[] | undefined = undefined;
     if (Array.isArray(qqqSentimentRoadmap)) {
       tickerSentimentRoadmap = qqqSentimentRoadmap.map((s: SentimentRoadmap) => {
         let label = s.label;
         if (beta < 0) {
-          // 인버스 종목은 심리 라벨 반전
-          label = label.replace("매수", "TMP").replace("매도", "매수").replace("TMP", "매도");
+          // 인버스 종목은 심리 라벨 반전 (상승/하락 및 매수/매도)
+          label = label
+            .replace("매수", "TMP_BUY").replace("매도", "매수").replace("TMP_BUY", "매도")
+            .replace("상승", "TMP_UP").replace("하락", "상승").replace("TMP_UP", "하락");
         }
         return { ...s, label };
+      });
+    }
+
+    // ✅ 전체 추세 예측 계산 (인버스 완벽 대응)
+    let tickerTrendForecast: TrendForecast[] | undefined = undefined;
+    if (Array.isArray(qqqTrendForecast)) {
+      tickerTrendForecast = qqqTrendForecast.map((f: TrendForecast) => {
+        let direction = f.direction;
+        let description = f.description;
+
+        if (beta < 0) {
+          if (direction === "상승") direction = "하락";
+          else if (direction === "하락") direction = "상승";
+
+          description = description
+            .replace("매수세", "TMP_BUY").replace("매도 압력", "매수세").replace("TMP_BUY", "매도 압력")
+            .replace("강화", "TMP_STR").replace("약화", "강화").replace("TMP_STR", "약화")
+            .replace("상승", "TMP_UP").replace("하락", "상승").replace("TMP_UP", "하락");
+        }
+
+        return {
+          ...f,
+          direction,
+          description,
+        };
       });
     }
 
@@ -1296,7 +1328,8 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
       timeSeries: tickerTimeSeries,
       swingScenarios: tickerSwingScenarios,
       segmentedTrends: tickerSegmentedTrends,
-      sentimentRoadmap: tickerSentimentRoadmap, // ✅ 추가된 필드
+      sentimentRoadmap: tickerSentimentRoadmap,
+      trendForecast: tickerTrendForecast, // ✅ 추가된 필드
     };
 
     res.json(analysis);

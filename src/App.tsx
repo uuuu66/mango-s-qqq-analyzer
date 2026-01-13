@@ -136,7 +136,8 @@ const App: React.FC = () => {
         data.timeSeries,
         data.swingScenarios,
         data.segmentedTrends,
-        data.sentimentRoadmap
+        data.sentimentRoadmap,
+        data.trendForecast
       );
       setTickerAnalysis(result);
     } catch (err: unknown) {
@@ -1413,6 +1414,51 @@ const App: React.FC = () => {
                                 ${scenario.extensionPrice?.toFixed(2)}
                               </span>
                             </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {/* ✅ 티커 시장 방향성 및 확률 예측 표시 */}
+              {tickerAnalysis.trendForecast &&
+                tickerAnalysis.trendForecast.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-slate-100">
+                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                      <TrendingUp className="w-3.5 h-3.5" /> {tickerAnalysis.symbol} 추세 및 확률 예측
+                    </h4>
+                    <div className="space-y-6">
+                      {tickerAnalysis.trendForecast.map((forecast, idx) => (
+                        <div key={idx}>
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-wider ${
+                                  forecast.direction === "상승"
+                                    ? "bg-emerald-500"
+                                    : forecast.direction === "하락"
+                                    ? "bg-red-500"
+                                    : "bg-slate-400"
+                                }`}
+                              >
+                                {forecast.direction}
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-bold font-mono">
+                                {forecast.period}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest mb-1">
+                                예측 신뢰도
+                              </div>
+                              <div className="text-xl font-black text-indigo-600">
+                                {forecast.probability}%
+                              </div>
+                            </div>
+                          </div>
+                          <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 text-xs text-slate-600 leading-relaxed font-medium">
+                            {forecast.description}
                           </div>
                         </div>
                       ))}
