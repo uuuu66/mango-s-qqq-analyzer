@@ -224,6 +224,12 @@ interface TickerTimeSeriesData {
   date: string;
   expectedSupport: number;
   expectedResistance: number;
+  profitPotential: number;
+  priceProbability: {
+    up: number;
+    down: number;
+    neutral: number;
+  };
 }
 
 interface TickerAnalysis {
@@ -930,13 +936,47 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
     let tickerTimeSeries: TickerTimeSeriesData[] | undefined = undefined;
     if (Array.isArray(qqqTimeSeries)) {
       tickerTimeSeries = qqqTimeSeries.map(
-        (q: { date: string; putSupport: number; callResistance: number }) => ({
-          date: q.date,
-          expectedSupport:
-            currentPrice * (1 + beta * (q.putSupport / qPrice - 1)),
-          expectedResistance:
-            currentPrice * (1 + beta * (q.callResistance / qPrice - 1)),
-        })
+        (q: {
+          date: string;
+          putSupport: number;
+          callResistance: number;
+          priceProbability: { up: number; down: number; neutral: number };
+        }) => {
+          const expectedSupport =
+            currentPrice * (1 + beta * (q.putSupport / qPrice - 1));
+          const expectedResistance =
+            currentPrice * (1 + beta * (q.callResistance / qPrice - 1));
+
+          let profitPotential: number;
+          let priceProbability = { ...q.priceProbability };
+
+          if (beta >= 0) {
+            // 정방향: (저항선 - 지지선) / 지지선
+            profitPotential =
+              ((expectedResistance - expectedSupport) / expectedSupport) * 100;
+          } else {
+            // 역방향: (지지선(실제로는 더 높은 가격) - 저항선(더 낮은 가격)) / 저항선
+            // 인버스는 QQQ가 오를 때(저항선) 사서 내릴 때(지지선) 팔아야 함
+            profitPotential =
+              ((expectedSupport - expectedResistance) / expectedResistance) *
+              100;
+
+            // 확률 반전 (QQQ 상승 확률이 인버스 하락 확률이 됨)
+            priceProbability = {
+              up: q.priceProbability.down,
+              down: q.priceProbability.up,
+              neutral: q.priceProbability.neutral,
+            };
+          }
+
+          return {
+            date: q.date,
+            expectedSupport,
+            expectedResistance,
+            profitPotential,
+            priceProbability,
+          };
+        }
       );
     }
 

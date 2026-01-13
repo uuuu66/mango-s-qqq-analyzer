@@ -670,12 +670,12 @@ const App: React.FC = () => {
             </h2>
             <div className="mt-2 flex flex-wrap gap-4">
               <p className="flex items-center gap-2 text-xs text-emerald-600 font-bold">
-                <span className="w-3 h-3 bg-emerald-500 rounded-sm"></span>
-                콜 에너지 (상승 압력 / 지지력)
+                <span className="w-3 h-3 bg-emerald-500 rounded-sm"></span>콜
+                에너지 (상승 압력 / 지지력)
               </p>
               <p className="flex items-center gap-2 text-xs text-rose-600 font-bold">
-                <span className="w-3 h-3 bg-rose-500 rounded-sm"></span>
-                풋 에너지 (하락 압력 / 변동성)
+                <span className="w-3 h-3 bg-rose-500 rounded-sm"></span>풋
+                에너지 (하락 압력 / 변동성)
               </p>
             </div>
           </div>
@@ -718,7 +718,9 @@ const App: React.FC = () => {
                       padding: "12px",
                     }}
                     formatter={(value: string | number | undefined) => [
-                      value !== undefined ? `$${Number(value).toFixed(2)}B` : "0.00B",
+                      value !== undefined
+                        ? `$${Number(value).toFixed(2)}B`
+                        : "0.00B",
                       "",
                     ]}
                   />
@@ -742,9 +744,11 @@ const App: React.FC = () => {
             </div>
           </div>
           <p className="mt-4 text-[10px] text-slate-400 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
-            * **콜 에너지(녹색):** 마켓 메이커가 콜 옵션을 매도하며 발생하는 방어력입니다. 양수가 클수록 주가 상승 시 지지력이 강해집니다.
-            <br />
-            * **풋 에너지(적색):** 마켓 메이커가 풋 옵션을 매수/매도하며 발생하는 압력입니다. 음수가 클수록 주가 하락 시 변동성이 커질 수 있습니다.
+            * **콜 에너지(녹색):** 마켓 메이커가 콜 옵션을 매도하며 발생하는
+            방어력입니다. 양수가 클수록 주가 상승 시 지지력이 강해집니다.
+            <br />* **풋 에너지(적색):** 마켓 메이커가 풋 옵션을 매수/매도하며
+            발생하는 압력입니다. 음수가 클수록 주가 하락 시 변동성이 커질 수
+            있습니다.
           </p>
         </section>
       </div>
@@ -1231,49 +1235,57 @@ const App: React.FC = () => {
               </div>
 
               {/* Ticker Swing Scenarios */}
-              {tickerAnalysis.swingScenarios && tickerAnalysis.swingScenarios.length > 0 && (
-                <div className="mt-8 pt-6 border-t border-slate-100">
-                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <TrendingUp className="w-3.5 h-3.5" /> {tickerAnalysis.symbol} 베타 보정 스윙 시나리오
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {tickerAnalysis.swingScenarios.map((scenario, idx) => (
-                      <div
-                        key={idx}
-                        className="p-4 bg-slate-50 rounded-2xl border border-slate-100"
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                            {scenario.entryDate} → {scenario.exitDate}
-                          </span>
-                          <div className="text-right">
-                            <span className="block text-sm font-black text-emerald-600">
-                              +{scenario.profit.toFixed(2)}%
+              {tickerAnalysis.swingScenarios &&
+                tickerAnalysis.swingScenarios.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-slate-100">
+                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <TrendingUp className="w-3.5 h-3.5" />{" "}
+                      {tickerAnalysis.symbol} 베타 보정 스윙 시나리오
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {tickerAnalysis.swingScenarios.map((scenario, idx) => (
+                        <div
+                          key={idx}
+                          className="p-4 bg-slate-50 rounded-2xl border border-slate-100"
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                              {scenario.entryDate} → {scenario.exitDate}
                             </span>
+                            <div className="text-right">
+                              <span className="block text-sm font-black text-emerald-600">
+                                +{scenario.profit.toFixed(2)}%
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-[11px] text-slate-600 font-medium mb-3">
+                            {scenario.description}
+                          </div>
+                          <div className="space-y-1.5 text-[10px] font-mono">
+                            <div className="flex justify-between items-center text-slate-500">
+                              <span>진입가</span>
+                              <span className="font-bold text-slate-700">
+                                ${scenario.entryPrice.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center text-blue-500">
+                              <span>기본 목표</span>
+                              <span className="font-bold text-blue-700">
+                                ${scenario.exitPrice.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center text-red-500">
+                              <span>확장 목표</span>
+                              <span className="font-bold text-red-700">
+                                ${scenario.extensionPrice.toFixed(2)}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                        <div className="text-[11px] text-slate-600 font-medium mb-3">
-                          {scenario.description}
-                        </div>
-                        <div className="space-y-1.5 text-[10px] font-mono">
-                          <div className="flex justify-between items-center text-slate-500">
-                            <span>진입가</span>
-                            <span className="font-bold text-slate-700">${scenario.entryPrice.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between items-center text-blue-500">
-                            <span>기본 목표</span>
-                            <span className="font-bold text-blue-700">${scenario.exitPrice.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between items-center text-red-500">
-                            <span>확장 목표</span>
-                            <span className="font-bold text-red-700">${scenario.extensionPrice.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               <div className="mt-8 pt-6 border-t border-slate-100">
                 <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -1282,72 +1294,149 @@ const App: React.FC = () => {
                 </h4>
                 {tickerAnalysis.timeSeries &&
                 tickerAnalysis.timeSeries.length > 0 ? (
-                  <div className="h-[300px] w-full mt-4">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart
-                        data={tickerAnalysis.timeSeries}
-                        margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                      >
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          vertical={false}
-                          stroke="#f1f5f9"
-                        />
-                        <XAxis
-                          dataKey="date"
-                          tick={{ fontSize: 10, fontWeight: 600 }}
-                          stroke="#64748b"
-                        />
-                        <YAxis
-                          domain={["auto", "auto"]}
-                          tick={{ fontSize: 10, fontWeight: 600 }}
-                          stroke="#64748b"
-                          label={{
-                            value: "Price ($)",
-                            angle: -90,
-                            position: "insideLeft",
-                            fontSize: 10,
-                            fontWeight: 700,
-                          }}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            borderRadius: "12px",
-                            border: "none",
-                            boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-                            fontSize: "11px",
-                          }}
-                        />
-                        <Line
-                          type="stepAfter"
-                          dataKey="expectedResistance"
-                          stroke="#ef4444"
-                          strokeDasharray="5 5"
-                          strokeWidth={2}
-                          dot={{ r: 3, fill: "#ef4444" }}
-                          name="예상 저항선"
-                        />
-                        <Line
-                          type="stepAfter"
-                          dataKey="expectedSupport"
-                          stroke="#3b82f6"
-                          strokeDasharray="5 5"
-                          strokeWidth={2}
-                          dot={{ r: 3, fill: "#3b82f6" }}
-                          name="예상 지지선"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey={() => tickerAnalysis.currentPrice}
-                          stroke="#1e293b"
-                          strokeWidth={1}
-                          dot={false}
-                          strokeOpacity={0.3}
-                          name="현재가"
-                        />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <>
+                    <div className="h-[300px] w-full mt-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart
+                          data={tickerAnalysis.timeSeries}
+                          margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            vertical={false}
+                            stroke="#f1f5f9"
+                          />
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 10, fontWeight: 600 }}
+                            stroke="#64748b"
+                          />
+                          <YAxis
+                            domain={["auto", "auto"]}
+                            tick={{ fontSize: 10, fontWeight: 600 }}
+                            stroke="#64748b"
+                            label={{
+                              value: "Price ($)",
+                              angle: -90,
+                              position: "insideLeft",
+                              fontSize: 10,
+                              fontWeight: 700,
+                            }}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              borderRadius: "12px",
+                              border: "none",
+                              boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+                              fontSize: "11px",
+                            }}
+                          />
+                          <Line
+                            type="stepAfter"
+                            dataKey="expectedResistance"
+                            stroke="#ef4444"
+                            strokeDasharray="5 5"
+                            strokeWidth={2}
+                            dot={{ r: 3, fill: "#ef4444" }}
+                            name="예상 저항선"
+                          />
+                          <Line
+                            type="stepAfter"
+                            dataKey="expectedSupport"
+                            stroke="#3b82f6"
+                            strokeDasharray="5 5"
+                            strokeWidth={2}
+                            dot={{ r: 3, fill: "#3b82f6" }}
+                            name="예상 지지선"
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey={() => tickerAnalysis.currentPrice}
+                            stroke="#1e293b"
+                            strokeWidth={1}
+                            dot={false}
+                            strokeOpacity={0.3}
+                            name="현재가"
+                          />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="mt-8">
+                      <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
+                        일자별 기대 수익 분석 (Daily Max Profit)
+                      </h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {tickerAnalysis.timeSeries
+                          .slice(0, 6)
+                          .map((item, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100"
+                            >
+                            <div>
+                              <div className="text-[9px] font-bold text-slate-400 mb-1">
+                                {item.date} 만기
+                              </div>
+                              <div className="text-[10px] font-mono flex items-center gap-1.5 mb-2">
+                                <span
+                                  className={
+                                    tickerAnalysis.beta >= 0
+                                      ? "text-blue-600 font-bold"
+                                      : "text-red-600 font-bold"
+                                  }
+                                >
+                                  {tickerAnalysis.beta >= 0 ? "Buy" : "Short"} @ $
+                                  {tickerAnalysis.beta >= 0
+                                    ? item.expectedSupport.toFixed(2)
+                                    : item.expectedResistance.toFixed(2)}
+                                </span>
+                                <span className="text-slate-300">→</span>
+                                <span
+                                  className={
+                                    tickerAnalysis.beta >= 0
+                                      ? "text-red-600 font-bold"
+                                      : "text-blue-600 font-bold"
+                                  }
+                                >
+                                  $
+                                  {tickerAnalysis.beta >= 0
+                                    ? item.expectedResistance.toFixed(2)
+                                    : item.expectedSupport.toFixed(2)}
+                                </span>
+                              </div>
+                              {/* Ticker Probability Mini Bars */}
+                              <div className="flex gap-1 h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-slate-100">
+                                <div
+                                  className="bg-emerald-500"
+                                  style={{ width: `${item.priceProbability.up}%` }}
+                                />
+                                <div
+                                  className="bg-slate-400"
+                                  style={{ width: `${item.priceProbability.neutral}%` }}
+                                />
+                                <div
+                                  className="bg-red-500"
+                                  style={{ width: `${item.priceProbability.down}%` }}
+                                />
+                              </div>
+                              <div className="flex justify-between w-full max-w-[100px] mt-1">
+                                <span className="text-[8px] font-bold text-emerald-600">{item.priceProbability.up}%</span>
+                                <span className="text-[8px] font-bold text-red-600">{item.priceProbability.down}%</span>
+                              </div>
+                            </div>
+                              <div className="text-right">
+                                <div className="text-[11px] font-black text-emerald-600">
+                                  {item.profitPotential <= 0
+                                    ? "Range-bound"
+                                    : `+${item.profitPotential.toFixed(2)}%`}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   <p className="text-xs text-slate-400 text-center py-8">
                     차트 데이터를 불러올 수 없습니다.

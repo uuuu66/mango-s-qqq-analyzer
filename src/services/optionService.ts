@@ -82,6 +82,12 @@ export interface TickerTimeSeriesData {
   date: string;
   expectedSupport: number;
   expectedResistance: number;
+  profitPotential: number;
+  priceProbability: {
+    up: number;
+    down: number;
+    neutral: number;
+  };
 }
 
 export interface TickerAnalysis {
