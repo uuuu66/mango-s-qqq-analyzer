@@ -106,7 +106,18 @@ const App: React.FC = () => {
   const handleTickerSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tickerInput || !data) return;
-
+    (
+      window as unknown as {
+        gtag: (
+          event: string,
+          name: string,
+          data: Record<string, unknown>
+        ) => void;
+      }
+    ).gtag?.("event", "ticker_search", {
+      ticker_name: tickerInput,
+      page_path: window.location.pathname,
+    });
     setTickerLoading(true);
     setTickerError(null);
     try {
@@ -137,6 +148,17 @@ const App: React.FC = () => {
   const downloadAsText = useCallback(() => {
     if (!data) return;
 
+    (
+      window as unknown as {
+        gtag: (
+          event: string,
+          name: string,
+          data: Record<string, unknown>
+        ) => void;
+      }
+    ).gtag?.("event", "download_text", {
+      page_path: window.location.pathname,
+    });
     let text = `QQQ Analysis Report - ${new Date().toLocaleString()}\n`;
     text += `==========================================\n\n`;
     text += `[ Summary ]\n`;
