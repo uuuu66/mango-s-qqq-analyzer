@@ -578,7 +578,13 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       finalExpirations.map(async (d) => {
         const dateString = String(d);
         try {
-          const dateObj = dayjs(dateString).tz("America/New_York");
+          // ✅ 만기 시간을 해당 날짜의 뉴욕 장 마감 시간(16:00)으로 설정
+          const dateObj = dayjs(dateString)
+            .tz("America/New_York")
+            .hour(16)
+            .minute(0)
+            .second(0);
+          
           const details = await yahooFinance.options("QQQ", {
             date: dateObj.toDate(),
           });
