@@ -139,10 +139,13 @@ const calculateNetGexAtSpot = (
     try {
       const adjustedSpot = spot * Math.exp(-DIVIDEND_YIELD * time);
 
-      // ✅ IV 방어 로직 통일 (processOption과 동일)
+      // ✅ GEX 프로파일링을 위한 IV 보정 (에너지 증발 방지)
+      // 만기가 짧을 때 IV가 너무 낮으면 감마가 0이 되는 현상을 막기 위해 Floor(10%) 적용
       const ivRaw = opt.impliedVolatility;
       const sigma =
-        typeof ivRaw === "number" && isFinite(ivRaw) && ivRaw > 0 ? ivRaw : 0.2;
+        typeof ivRaw === "number" && isFinite(ivRaw) 
+          ? Math.max(0.10, ivRaw) // 최소 10% 변동성 가정으로 에너지 분포 확보
+          : 0.2;
 
       const result = blackScholes.option({
         rate: RISK_FREE_RATE,
@@ -153,9 +156,11 @@ const calculateNetGexAtSpot = (
         underlying: adjustedSpot,
       });
 
+      // ✅ 감마는 항상 절대값 사용, 부호는 오직 type에 의해서만 결정
+      const gamma = Math.abs(safeNum(result.gamma, 0));
       const gex =
         (opt.type === "call" ? 1 : -1) *
-        result.gamma *
+        gamma *
         (opt.openInterest || 0) *
         100 *
         (spot * spot) *
@@ -177,7 +182,7 @@ const findTrueGammaFlip = (
 ): number => {
   if (options.length === 0) return currentSpot;
 
-  const scanRange = 0.15; // ±15% 범위로 확장
+  const scanRange = 0.10; // 현재가 기준 ±10% 탐색
   let low = currentSpot * (1 - scanRange);
   let high = currentSpot * (1 + scanRange);
 
@@ -454,17 +459,21 @@ const processOption = (
     Math.min(IV_CLAMP_MAX, impliedVolatility)
   );
 
+  // ✅ GEX 프로파일링을 위한 IV 보정 (에너지 증발 방지)
+  const greekSigma = Math.max(0.10, impliedVolatility);
+
   let gamma = 0;
   try {
     const result = blackScholes.option({
       rate: RISK_FREE_RATE,
-      sigma: impliedVolatility,
+      sigma: greekSigma,
       strike,
       time: Math.max(timeToExpiration, 0.0001),
       type,
       underlying: adjustedSpot,
     });
-    gamma = safeNum(result.gamma, 0);
+    // ✅ 감마는 항상 절대값 보장
+    gamma = Math.abs(safeNum(result.gamma, 0));
   } catch {
     // gamma = 0
   }
