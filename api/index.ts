@@ -2,6 +2,14 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import YahooFinance from "yahoo-finance2";
 import { BlackScholes } from "@uqee/black-scholes";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
+// dayjs 설정
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.tz.setDefault("America/New_York"); // 미국 시장 기준 시간대 설정
 
 const yahooFinance = new YahooFinance({
   suppressNotices: ["ripHistorical", "yahooSurvey"],
@@ -13,8 +21,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const RISK_FREE_RATE = 0.0364; // 2026 SOFR 기준 3.64% 반영
-const DIVIDEND_YIELD = 0.0048; // QQQ 평균 배당 수익률 0.48% 반영
+const RISK_FREE_RATE = 0.043; // 4.3% (미 국채 10년물 기준)
+const DIVIDEND_YIELD = 0.006; // 0.6% (QQQ 기대 배당수익률)
+
+// ✅ 실무적 보정을 위한 하이퍼파라미터 (피드백 반영)
+const VOLATILITY_TRIGGER_RATIO = 0.985; // 감마 플립 대비 1.5% 하단을 트리거로 설정
+const NEUTRAL_PROB_WEIGHT = 1.5; // 방향성 불균형에 따른 중립 확률 감소 가중치
+const NEUTRAL_PROB_BASE_OFFSET = 20; // 중립 확률 기본 차감값
+const IV_CLAMP_MIN = 0.0001; // 내재변동성 하한선 (발산 방지)
+const IV_CLAMP_MAX = 5.0; // 내재변동성 상한선 (발산 방지)
 
 /**
  * 사용자 지정 기간 히스토리 데이터를 기반으로 베타계수 직접 계산
@@ -401,7 +416,8 @@ const processOption = (
       ? Number(option.volume) * 0.1
       : 1;
 
-  const adjustedSpot = spotPrice * Math.exp(-DIVIDEND_YIELD * timeToExpiration);
+  const adjustedSpot =
+    spotPrice * Math.exp(-DIVIDEND_YIELD * timeToExpiration);
   const ivRaw = option.impliedVolatility;
 
   let impliedVolatility: number;
@@ -419,6 +435,12 @@ const processOption = (
     impliedVolatility = ivRaw;
   }
 
+  // ✅ IV 클램핑 (발산 방지)
+  impliedVolatility = Math.max(
+    IV_CLAMP_MIN,
+    Math.min(IV_CLAMP_MAX, impliedVolatility)
+  );
+
   let gamma = 0;
   try {
     const result = blackScholes.option({
@@ -434,7 +456,8 @@ const processOption = (
     // gamma = 0
   }
 
-  // Dollar Notional GEX (1% Move 기준)
+  // Dollar Notional GEX (주가 1% 변동 시 발생하는 명목 노출액)
+  // ✅ 주의: OI 기반의 방향 가정(Proxy)이며, 실제 딜러 포지션과 다를 수 있음
   const gammaExposure =
     (type === "call" ? 1 : -1) *
     gamma *
@@ -515,20 +538,18 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     diagnostics.expirationsCount = rawExpirationDates.length;
     addLog(`총 ${rawExpirationDates.length}개의 만기일 발견`);
 
-    const now = new Date();
-    // ✅ 오늘 만기 데이터(0DTE)를 포함하기 위해 비교용 시간을 오늘 자정으로 설정
-    const todayStart = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
-    const filterLimit = new Date(todayStart);
-    filterLimit.setDate(todayStart.getDate() + 30);
+    const now = dayjs().tz("America/New_York");
+    const todayStart = now.startOf("day");
+    const filterLimit = todayStart.add(30, "day");
 
     const targetExpirations = rawExpirationDates.filter((d) => {
-      const expirationDate = new Date(d);
+      const expirationDate = dayjs(d).tz("America/New_York");
       // 날짜가 오늘 이후이거나 오늘인 경우 포함
-      return expirationDate >= todayStart && expirationDate <= filterLimit;
+      return (
+        (expirationDate.isAfter(todayStart) ||
+          expirationDate.isSame(todayStart)) &&
+        expirationDate.isBefore(filterLimit)
+      );
     });
 
     const finalExpirations =
@@ -541,9 +562,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       finalExpirations.map(async (d) => {
         const dateString = String(d);
         try {
-          const dateObj = new Date(dateString);
+          const dateObj = dayjs(dateString).tz("America/New_York");
           const details = await yahooFinance.options("QQQ", {
-            date: dateObj,
+            date: dateObj.toDate(),
           });
 
           const expirationData = details?.options?.[0];
@@ -557,11 +578,8 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           }
 
           // ✅ 잔존 만기 계산 (0DTE 대응: 최소 1시간(약 0.0001년) 확보)
-          const timeDiff = dateObj.getTime() - now.getTime();
-          const timeToExpiration = Math.max(
-            timeDiff / (1000 * 60 * 60 * 24 * 365),
-            0.0001
-          );
+          const timeDiff = dateObj.diff(now, "year", true);
+          const timeToExpiration = Math.max(timeDiff, 0.0001);
 
           // 1) 전체 데이터 기준 PCR 계산 (연구 데이터 대조용)
           const allCallsRaw = expirationData.calls || [];
@@ -659,7 +677,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             currentPrice,
             timeToExpiration
           );
-          const volTrigger = gammaFlip * 0.985;
+          const volTrigger = gammaFlip * VOLATILITY_TRIGGER_RATIO;
 
           // 5) 옵션 분포 기반 가격 변동 확률 계산
           const totalCallEnergy = calls.reduce(
@@ -683,7 +701,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
             neutralProb = Math.max(
               0,
-              100 - Math.abs(upProb - downProb) * 1.5 - 20
+              100 -
+                Math.abs(upProb - downProb) * NEUTRAL_PROB_WEIGHT -
+                NEUTRAL_PROB_BASE_OFFSET
             );
             const remaining = 100 - neutralProb;
             const ratio = upProb / (upProb + downProb);
@@ -728,10 +748,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           });
 
           return {
-            date: dateObj.toLocaleDateString("ko-KR", {
-              month: "2-digit",
-              day: "2-digit",
-            }),
+            date: dateObj.format("MM/DD"),
             isoDate: dateObj.toISOString(),
             callResistance: callWall,
             putSupport: putWall,
@@ -784,11 +801,12 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     ) => {
       let wSum = 0;
       let vSum = 0;
-      const nowTs = new Date().getTime();
+      const nowTs = dayjs().tz("America/New_York").valueOf();
 
       for (const r of items) {
         const t = Math.max(
-          (new Date(r.isoDate).getTime() - nowTs) / (1000 * 60 * 60 * 24 * 365),
+          (dayjs(r.isoDate).tz("America/New_York").valueOf() - nowTs) /
+            (1000 * 60 * 60 * 24 * 365),
           1 / 365
         );
         const w = 1 / Math.sqrt(t); // 가까운 만기일수록 큰 가중치
@@ -803,6 +821,12 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       validResults,
       "callResistance"
     );
+
+    // ✅ 시장 전체 통합 감마 플립 산출 (피드백 반영: Aggregation Rule 적용)
+    // 모든 유효 만기일의 옵션 데이터를 하나로 합쳐 거대한 GEX Profile 생성
+    const allOptions = validResults.flatMap((r) => r.options);
+    const globalGammaFlip = findTrueGammaFlip(allOptions, currentPrice, 0.1); // 평균적인 시간 가중치 적용
+    const globalVolTrigger = globalGammaFlip * VOLATILITY_TRIGGER_RATIO;
 
     const recommendations = generateRecommendations(
       aggSupport,
@@ -931,9 +955,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       totalNetGEX: `${(validResults[0].totalGex / 1e9).toFixed(2)}B USD/1%`,
       // 리서치 제언: 가격이 감마 플립보다 위에 있으면 안정(Stabilizing), 아래면 변동(Volatile)
       marketRegime:
-        currentPrice > validResults[0].gammaFlip ? "Stabilizing" : "Volatile",
-      gammaFlip: validResults[0].gammaFlip,
-      volTrigger: validResults[0].volTrigger,
+        currentPrice > globalGammaFlip ? "Stabilizing" : "Volatile",
+      gammaFlip: globalGammaFlip, // ✅ 통합 글로벌 플립 적용
+      volTrigger: globalVolTrigger, // ✅ 통합 글로벌 트리거 적용
       timeSeries: validResults.map((result) => ({
         date: result.date,
         isoDate: result.isoDate,
