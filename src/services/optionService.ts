@@ -94,6 +94,7 @@ export interface TickerAnalysis {
   expectedMax: number;
   changePercent: number;
   timeSeries?: TickerTimeSeriesData[];
+  swingScenarios?: SwingScenario[];
 }
 
 export const fetchTickerAnalysis = async (
@@ -104,7 +105,8 @@ export const fetchTickerAnalysis = async (
   qqqMin: number,
   qqqMax: number,
   months: number = 3,
-  qqqTimeSeries?: TimeSeriesData[]
+  qqqTimeSeries?: TimeSeriesData[],
+  qqqSwingScenarios?: SwingScenario[]
 ): Promise<TickerAnalysis> => {
   const response = await fetch(`/api/ticker-analysis`, {
     method: "POST",
@@ -120,6 +122,7 @@ export const fetchTickerAnalysis = async (
       qqqMax,
       months,
       qqqTimeSeries,
+      qqqSwingScenarios,
     }),
   });
   if (!response.ok) {

@@ -132,7 +132,8 @@ const App: React.FC = () => {
         qqqMin,
         qqqMax,
         betaPeriod,
-        data.timeSeries
+        data.timeSeries,
+        data.swingScenarios
       );
       setTickerAnalysis(result);
     } catch (err: unknown) {
@@ -308,6 +309,9 @@ const App: React.FC = () => {
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
               QQQ Flow Analyzer
+              <span className="ml-3 text-xs font-bold bg-blue-100 text-blue-600 px-2 py-1 rounded-md uppercase tracking-wider">
+                30-Day Outlook
+              </span>
             </h1>
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1.5">
               <div className="flex items-center gap-2">
@@ -1139,6 +1143,51 @@ const App: React.FC = () => {
                   </span>
                 </div>
               </div>
+
+              {/* Ticker Swing Scenarios */}
+              {tickerAnalysis.swingScenarios && tickerAnalysis.swingScenarios.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <TrendingUp className="w-3.5 h-3.5" /> {tickerAnalysis.symbol} 베타 보정 스윙 시나리오
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {tickerAnalysis.swingScenarios.map((scenario, idx) => (
+                      <div
+                        key={idx}
+                        className="p-4 bg-slate-50 rounded-2xl border border-slate-100"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            {scenario.entryDate} → {scenario.exitDate}
+                          </span>
+                          <div className="text-right">
+                            <span className="block text-sm font-black text-emerald-600">
+                              +{scenario.profit.toFixed(2)}%
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-[11px] text-slate-600 font-medium mb-3">
+                          {scenario.description}
+                        </div>
+                        <div className="space-y-1.5 text-[10px] font-mono">
+                          <div className="flex justify-between items-center text-slate-500">
+                            <span>진입가</span>
+                            <span className="font-bold text-slate-700">${scenario.entryPrice.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-blue-500">
+                            <span>기본 목표</span>
+                            <span className="font-bold text-blue-700">${scenario.exitPrice.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-red-500">
+                            <span>확장 목표</span>
+                            <span className="font-bold text-red-700">${scenario.extensionPrice.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="mt-8 pt-6 border-t border-slate-100">
                 <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">

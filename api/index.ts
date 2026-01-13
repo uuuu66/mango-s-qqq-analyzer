@@ -236,6 +236,7 @@ interface TickerAnalysis {
   expectedMax: number;
   changePercent: number;
   timeSeries?: TickerTimeSeriesData[];
+  swingScenarios?: SwingScenario[];
 }
 
 interface DiagnosticDetail {
@@ -438,7 +439,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
     const now = new Date();
     const filterLimit = new Date();
-    filterLimit.setDate(now.getDate() + 14);
+    filterLimit.setDate(now.getDate() + 30);
 
     const targetExpirations = rawExpirationDates.filter((d) => {
       const expirationDate = new Date(d);
@@ -882,6 +883,7 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
     qqqMax,
     months,
     qqqTimeSeries,
+    qqqSwingScenarios,
   } = req.body;
 
   if (!symbol) {
@@ -938,6 +940,30 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
       );
     }
 
+    // 스윙 시나리오 계산 (있는 경우)
+    let tickerSwingScenarios: SwingScenario[] | undefined = undefined;
+    if (Array.isArray(qqqSwingScenarios)) {
+      tickerSwingScenarios = qqqSwingScenarios.map((s: SwingScenario) => {
+        const entryPrice = currentPrice * (1 + beta * (s.entryPrice / qPrice - 1));
+        const exitPrice = currentPrice * (1 + beta * (s.exitPrice / qPrice - 1));
+        const extensionPrice =
+          currentPrice * (1 + beta * (s.extensionPrice / qPrice - 1));
+        const profit = ((exitPrice - entryPrice) / entryPrice) * 100;
+        const extensionProfit =
+          ((extensionPrice - entryPrice) / entryPrice) * 100;
+
+        return {
+          ...s,
+          entryPrice,
+          exitPrice,
+          extensionPrice,
+          profit,
+          extensionProfit,
+          description: s.description.replace("QQQ", String(symbol).toUpperCase()),
+        };
+      });
+    }
+
     const analysis: TickerAnalysis = {
       symbol: String(symbol).toUpperCase(),
       currentPrice,
@@ -948,6 +974,7 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
       expectedMax,
       changePercent: quote.regularMarketChangePercent || 0,
       timeSeries: tickerTimeSeries,
+      swingScenarios: tickerSwingScenarios,
     };
 
     res.json(analysis);
