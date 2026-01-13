@@ -1001,7 +1001,7 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           exitPrice = currentPrice * (1 + beta * (s.entryPrice / qPrice - 1));
           // 인버스의 확장 익절은 QQQ가 지지선을 뚫고 더 내려가는 시나리오
           extensionPrice =
-            currentPrice * (1 + beta * (s.entryPrice * 0.98 / qPrice - 1));
+            currentPrice * (1 + beta * ((s.entryPrice * 0.98) / qPrice - 1));
         }
 
         const profit = ((exitPrice - entryPrice) / entryPrice) * 100;
@@ -1018,7 +1018,11 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           description:
             beta >= 0
               ? s.description.replace("QQQ", String(symbol).toUpperCase())
-              : `${s.entryDate} ~ ${s.exitDate} 하락 베팅: QQQ 저항선($${s.exitPrice.toFixed(2)}) 부근 진입 시나리오`,
+              : `${s.entryDate} ~ ${
+                  s.exitDate
+                } 하락 베팅: QQQ 저항선($${s.exitPrice.toFixed(
+                  2
+                )}) 부근 진입 시나리오`,
         };
       });
     }

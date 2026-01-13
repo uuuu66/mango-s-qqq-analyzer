@@ -976,6 +976,35 @@ const App: React.FC = () => {
                       Sell @ ${item.callResistance.toFixed(2)}
                     </span>
                   </div>
+                  {/* QQQ Probability Mini Bars */}
+                  <div className="flex gap-1 h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-slate-100 mt-2">
+                    <div
+                      className="bg-emerald-500"
+                      style={{
+                        width: `${item.priceProbability?.up ?? 0}%`,
+                      }}
+                    />
+                    <div
+                      className="bg-slate-400"
+                      style={{
+                        width: `${item.priceProbability?.neutral ?? 0}%`,
+                      }}
+                    />
+                    <div
+                      className="bg-red-500"
+                      style={{
+                        width: `${item.priceProbability?.down ?? 0}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between w-full max-w-[100px] mt-1">
+                    <span className="text-[8px] font-bold text-emerald-600">
+                      {item.priceProbability?.up ?? 0}%
+                    </span>
+                    <span className="text-[8px] font-bold text-red-600">
+                      {item.priceProbability?.down ?? 0}%
+                    </span>
+                  </div>
                 </div>
                 <div className="text-right">
                   <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-1">
@@ -1374,57 +1403,68 @@ const App: React.FC = () => {
                               key={idx}
                               className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100"
                             >
-                            <div>
-                              <div className="text-[9px] font-bold text-slate-400 mb-1">
-                                {item.date} 만기
+                              <div>
+                                <div className="text-[9px] font-bold text-slate-400 mb-1">
+                                  {item.date} 만기
+                                </div>
+                                <div className="text-[10px] font-mono flex items-center gap-1.5 mb-2">
+                                  <span
+                                    className={
+                                      tickerAnalysis.beta >= 0
+                                        ? "text-blue-600 font-bold"
+                                        : "text-red-600 font-bold"
+                                    }
+                                  >
+                                    {tickerAnalysis.beta >= 0 ? "Buy" : "Short"}{" "}
+                                    @ $
+                                    {tickerAnalysis.beta >= 0
+                                      ? item.expectedSupport.toFixed(2)
+                                      : item.expectedResistance.toFixed(2)}
+                                  </span>
+                                  <span className="text-slate-300">→</span>
+                                  <span
+                                    className={
+                                      tickerAnalysis.beta >= 0
+                                        ? "text-red-600 font-bold"
+                                        : "text-blue-600 font-bold"
+                                    }
+                                  >
+                                    $
+                                    {tickerAnalysis.beta >= 0
+                                      ? item.expectedResistance.toFixed(2)
+                                      : item.expectedSupport.toFixed(2)}
+                                  </span>
+                                </div>
+                                {/* Ticker Probability Mini Bars */}
+                                <div className="flex gap-1 h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-slate-100">
+                                  <div
+                                    className="bg-emerald-500"
+                                    style={{
+                                      width: `${item.priceProbability.up}%`,
+                                    }}
+                                  />
+                                  <div
+                                    className="bg-slate-400"
+                                    style={{
+                                      width: `${item.priceProbability.neutral}%`,
+                                    }}
+                                  />
+                                  <div
+                                    className="bg-red-500"
+                                    style={{
+                                      width: `${item.priceProbability.down}%`,
+                                    }}
+                                  />
+                                </div>
+                                <div className="flex justify-between w-full max-w-[100px] mt-1">
+                                  <span className="text-[8px] font-bold text-emerald-600">
+                                    {item.priceProbability.up}%
+                                  </span>
+                                  <span className="text-[8px] font-bold text-red-600">
+                                    {item.priceProbability.down}%
+                                  </span>
+                                </div>
                               </div>
-                              <div className="text-[10px] font-mono flex items-center gap-1.5 mb-2">
-                                <span
-                                  className={
-                                    tickerAnalysis.beta >= 0
-                                      ? "text-blue-600 font-bold"
-                                      : "text-red-600 font-bold"
-                                  }
-                                >
-                                  {tickerAnalysis.beta >= 0 ? "Buy" : "Short"} @ $
-                                  {tickerAnalysis.beta >= 0
-                                    ? item.expectedSupport.toFixed(2)
-                                    : item.expectedResistance.toFixed(2)}
-                                </span>
-                                <span className="text-slate-300">→</span>
-                                <span
-                                  className={
-                                    tickerAnalysis.beta >= 0
-                                      ? "text-red-600 font-bold"
-                                      : "text-blue-600 font-bold"
-                                  }
-                                >
-                                  $
-                                  {tickerAnalysis.beta >= 0
-                                    ? item.expectedResistance.toFixed(2)
-                                    : item.expectedSupport.toFixed(2)}
-                                </span>
-                              </div>
-                              {/* Ticker Probability Mini Bars */}
-                              <div className="flex gap-1 h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-slate-100">
-                                <div
-                                  className="bg-emerald-500"
-                                  style={{ width: `${item.priceProbability.up}%` }}
-                                />
-                                <div
-                                  className="bg-slate-400"
-                                  style={{ width: `${item.priceProbability.neutral}%` }}
-                                />
-                                <div
-                                  className="bg-red-500"
-                                  style={{ width: `${item.priceProbability.down}%` }}
-                                />
-                              </div>
-                              <div className="flex justify-between w-full max-w-[100px] mt-1">
-                                <span className="text-[8px] font-bold text-emerald-600">{item.priceProbability.up}%</span>
-                                <span className="text-[8px] font-bold text-red-600">{item.priceProbability.down}%</span>
-                              </div>
-                            </div>
                               <div className="text-right">
                                 <div className="text-[11px] font-black text-emerald-600">
                                   {item.profitPotential <= 0
