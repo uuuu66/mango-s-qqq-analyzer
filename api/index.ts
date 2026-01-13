@@ -1340,6 +1340,11 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
         let direction = s.direction;
         let description = s.description;
 
+        // ✅ 가격 레벨 베타 보정 (해당 티커의 가격으로 변환)
+        const tStartPrice =
+          currentPrice * (1 + beta * (s.startPrice / qPrice - 1));
+        const tEndPrice = currentPrice * (1 + beta * (s.endPrice / qPrice - 1));
+
         if (beta < 0) {
           // 인버스 종목은 방향 및 심리 완벽 반전
           if (direction === "상승") direction = "하락";
@@ -1356,6 +1361,8 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
 
         return {
           ...s,
+          startPrice: tStartPrice,
+          endPrice: tEndPrice,
           direction,
           description: description
             .replace("지지선", "기대 지지선")
