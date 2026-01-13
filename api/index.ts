@@ -3,13 +3,12 @@ import cors from "cors";
 import YahooFinance from "yahoo-finance2";
 import { BlackScholes } from "@uqee/black-scholes";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
 
-// dayjs 설정
+// dayjs 설정 (ESM/CJS 호환성을 위해 .js 확장자 명시 권장되는 경우 대응)
 dayjs.extend(utc);
 dayjs.extend(timezone);
-dayjs.tz.setDefault("America/New_York"); // 미국 시장 기준 시간대 설정
 
 const yahooFinance = new YahooFinance({
   suppressNotices: ["ripHistorical", "yahooSurvey"],
@@ -21,15 +20,22 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const RISK_FREE_RATE = 0.043; // 4.3% (미 국채 10년물 기준)
-const DIVIDEND_YIELD = 0.006; // 0.6% (QQQ 기대 배당수익률)
+const RISK_FREE_RATE = 0.043;
+const DIVIDEND_YIELD = 0.006;
 
-// ✅ 실무적 보정을 위한 하이퍼파라미터 (피드백 반영)
-const VOLATILITY_TRIGGER_RATIO = 0.985; // 감마 플립 대비 1.5% 하단을 트리거로 설정
-const NEUTRAL_PROB_WEIGHT = 1.5; // 방향성 불균형에 따른 중립 확률 감소 가중치
-const NEUTRAL_PROB_BASE_OFFSET = 20; // 중립 확률 기본 차감값
-const IV_CLAMP_MIN = 0.0001; // 내재변동성 하한선 (발산 방지)
-const IV_CLAMP_MAX = 5.0; // 내재변동성 상한선 (발산 방지)
+// ✅ 하이퍼파라미터 안전한 기본값 보장
+const VOLATILITY_TRIGGER_RATIO = 0.985;
+const NEUTRAL_PROB_WEIGHT = 1.5;
+const NEUTRAL_PROB_BASE_OFFSET = 20;
+const IV_CLAMP_MIN = 0.0001;
+const IV_CLAMP_MAX = 5.0;
+
+/**
+ * 수치 안전화 헬퍼 (NaN 방지)
+ */
+const safeNum = (val: any, fallback: number = 0): number => {
+  return typeof val === "number" && isFinite(val) ? val : fallback;
+};
 
 /**
  * 사용자 지정 기간 히스토리 데이터를 기반으로 베타계수 직접 계산
@@ -550,6 +556,8 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     const todayStart = now.startOf("day");
     const filterLimit = todayStart.add(30, "day");
 
+    addLog(`기준 시각(NY): ${now.format("YYYY-MM-DD HH:mm:ss")}`);
+
     const targetExpirations = rawExpirationDates.filter((d) => {
       const expirationDate = dayjs(d).tz("America/New_York");
       // 날짜가 오늘 이후이거나 오늘인 경우 포함
@@ -993,21 +1001,14 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       trendForecast,
       diagnostics,
     });
-  } catch (err: unknown) {
+  } catch (err: any) {
     console.error("Analysis Error:", err);
-    const errorMsg =
-      err instanceof Error
-        ? err.message
-        : typeof err === "object" && err !== null && "message" in err
-        ? (err as { message: string }).message
-        : "Unknown error";
-    const diag =
-      typeof err === "object" && err !== null && "diagnostics" in err
-        ? (err as { diagnostics: Diagnostics }).diagnostics
-        : diagnostics;
+    const errorMsg = err?.message || String(err);
+    
+    // 최소한의 응답 보장
     response.status(500).json({
       error: errorMsg,
-      diagnostics: diag,
+      diagnostics: diagnostics
     });
   }
 });
