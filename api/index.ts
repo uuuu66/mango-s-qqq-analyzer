@@ -587,17 +587,14 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     const results = await Promise.all(
       finalExpirations.map(async (d) => {
         const originalDate = d; // ✅ 야후 API 호출용 원본 객체 보존
-        const dateString = String(d);
         try {
-          // ✅ 내부 계산용: 만기 시간을 해당 날짜의 뉴욕 장 마감 시간(16:00)으로 설정
-          const dateObj = dayjs(originalDate)
-            .tz("America/New_York")
-            .hour(16)
-            .minute(0)
-            .second(0);
+          // ✅ 날짜 문자열(YYYY-MM-DD)을 추출하여 뉴욕 시간대의 16:00으로 설정
+          // 이렇게 해야 UTC 자정(NY 전날 저녁) 문제를 방지하고 정확한 오늘 만기를 계산합니다.
+          const expDateStr = dayjs(originalDate).utc().format("YYYY-MM-DD");
+          const dateObj = dayjs.tz(expDateStr, "America/New_York").hour(16).minute(0).second(0);
           
           const details = await yahooFinance.options("QQQ", {
-            date: originalDate, // ✅ 야후 API에는 원래의 Date 객체 전달 (no_data 방지)
+            date: originalDate, // ✅ 야후 API에는 원래의 Date 객체 전달
           });
 
           const expirationData = details?.options?.[0];
@@ -784,7 +781,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           });
 
           return {
-            date: dateObj.format("MM/DD"),
+            date: expDateStr.split("-").slice(1).join("/"), // "MM/DD" 형식으로 직접 추출
             isoDate: dateObj.toISOString(),
             callResistance: callWall,
             putSupport: putWall,
