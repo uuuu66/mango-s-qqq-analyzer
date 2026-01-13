@@ -163,35 +163,43 @@ const calculateNetGexAtSpot = (
 };
 
 /**
- * Spot 스캔 방식의 진짜 Gamma Flip (Zero Gamma Level) 탐색 함수
+ * Spot 스캔 방식의 진짜 Gamma Flip (Zero Gamma Level) 탐색 함수 (이진 탐색 최적화)
  */
 const findTrueGammaFlip = (
   options: ProcessedOption[],
   currentSpot: number,
   time: number
 ): number => {
-  const scanRange = 0.1; // 현재가 기준 ±10% 스캔
-  const step = 1; // 1달러 단위 정밀 스캔
-  const start = currentSpot * (1 - scanRange);
-  const end = currentSpot * (1 + scanRange);
+  if (options.length === 0) return currentSpot;
 
-  let prevSpot = start;
-  let prevGex = calculateNetGexAtSpot(options, prevSpot, time);
+  const scanRange = 0.15; // ±15% 범위로 확장
+  let low = currentSpot * (1 - scanRange);
+  let high = currentSpot * (1 + scanRange);
 
-  for (let spot = start + step; spot <= end; spot += step) {
-    const currentGex = calculateNetGexAtSpot(options, spot, time);
-    // 부호가 바뀌는 구간(0 교차점) 발견
-    if (prevGex * currentGex <= 0) {
-      const totalAbsGex = Math.abs(prevGex) + Math.abs(currentGex);
-      if (totalAbsGex === 0) return (prevSpot + spot) / 2; // 0으로 나누기 방지
+  // 1) 양 끝점의 GEX 부호 확인
+  const gexLow = calculateNetGexAtSpot(options, low, time);
+  const gexHigh = calculateNetGexAtSpot(options, high, time);
 
-      // 선형 보간으로 더 정밀한 0 지점 추정
-      return prevSpot + (spot - prevSpot) * (Math.abs(prevGex) / totalAbsGex);
-    }
-    prevSpot = spot;
-    prevGex = currentGex;
+  // 부호가 같다면 (범위 내에 Flip이 없다면) 더 가까운 쪽 혹은 현재가 반환
+  if (gexLow * gexHigh > 0) {
+    return Math.abs(gexLow) < Math.abs(gexHigh) ? low : high;
   }
-  return currentSpot; // 못 찾을 경우 현재가 반환
+
+  // 2) 이진 탐색 (Binary Search)으로 0 지점 정밀 추적 (최대 15회 반복으로 충분히 정밀함)
+  for (let i = 0; i < 15; i++) {
+    const mid = (low + high) / 2;
+    const gexMid = calculateNetGexAtSpot(options, mid, time);
+
+    if (Math.abs(gexMid) < 0.1) return mid; // 충분히 0에 가까우면 반환
+
+    if (gexLow * gexMid <= 0) {
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+
+  return (low + high) / 2;
 };
 
 interface OptionDataInput {
