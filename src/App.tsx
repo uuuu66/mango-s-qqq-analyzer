@@ -8,6 +8,7 @@ import {
   ComposedChart,
   Line,
   Area,
+  Bar,
   ReferenceArea,
   ReferenceLine,
 } from "recharts";
@@ -660,6 +661,91 @@ const App: React.FC = () => {
               </ResponsiveContainer>
             </div>
           </div>
+        </section>
+
+        <section className="p-4 md:p-6 border rounded-2xl shadow-sm bg-white overflow-hidden">
+          <div className="mb-6 border-b pb-4">
+            <h2 className="text-xl font-bold text-slate-800">
+              만기별 콜/풋 에너지 균형 (GEX Imbalance)
+            </h2>
+            <div className="mt-2 flex flex-wrap gap-4">
+              <p className="flex items-center gap-2 text-xs text-emerald-600 font-bold">
+                <span className="w-3 h-3 bg-emerald-500 rounded-sm"></span>
+                콜 에너지 (상승 압력 / 지지력)
+              </p>
+              <p className="flex items-center gap-2 text-xs text-rose-600 font-bold">
+                <span className="w-3 h-3 bg-rose-500 rounded-sm"></span>
+                풋 에너지 (하락 압력 / 변동성)
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto pb-4 custom-scrollbar">
+            <div className="h-[300px] min-w-[900px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart
+                  data={data?.timeSeries}
+                  margin={{ top: 20, right: 40, left: 10, bottom: 20 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#f1f5f9"
+                  />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11, fontWeight: 600 }}
+                    stroke="#64748b"
+                    padding={{ left: 30, right: 30 }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fontWeight: 600 }}
+                    stroke="#64748b"
+                    label={{
+                      value: "GEX ($ Billion)",
+                      angle: -90,
+                      position: "insideLeft",
+                      fontSize: 10,
+                      fontWeight: 700,
+                    }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "16px",
+                      border: "none",
+                      boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)",
+                      fontSize: "12px",
+                      padding: "12px",
+                    }}
+                    formatter={(value: string | number | undefined) => [
+                      value !== undefined ? `$${Number(value).toFixed(2)}B` : "0.00B",
+                      "",
+                    ]}
+                  />
+                  <ReferenceLine y={0} stroke="#e2e8f0" />
+                  <Bar
+                    dataKey={(item) => item.callGex / 1e9}
+                    fill="#10b981"
+                    name="콜 에너지"
+                    radius={[4, 4, 0, 0]}
+                    barSize={30}
+                  />
+                  <Bar
+                    dataKey={(item) => item.putGex / 1e9}
+                    fill="#f43f5e"
+                    name="풋 에너지"
+                    radius={[0, 0, 4, 4]}
+                    barSize={30}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <p className="mt-4 text-[10px] text-slate-400 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+            * **콜 에너지(녹색):** 마켓 메이커가 콜 옵션을 매도하며 발생하는 방어력입니다. 양수가 클수록 주가 상승 시 지지력이 강해집니다.
+            <br />
+            * **풋 에너지(적색):** 마켓 메이커가 풋 옵션을 매수/매도하며 발생하는 압력입니다. 음수가 클수록 주가 하락 시 변동성이 커질 수 있습니다.
+          </p>
         </section>
       </div>
 

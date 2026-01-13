@@ -944,10 +944,26 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
     let tickerSwingScenarios: SwingScenario[] | undefined = undefined;
     if (Array.isArray(qqqSwingScenarios)) {
       tickerSwingScenarios = qqqSwingScenarios.map((s: SwingScenario) => {
-        const entryPrice = currentPrice * (1 + beta * (s.entryPrice / qPrice - 1));
-        const exitPrice = currentPrice * (1 + beta * (s.exitPrice / qPrice - 1));
-        const extensionPrice =
-          currentPrice * (1 + beta * (s.extensionPrice / qPrice - 1));
+        let entryPrice: number;
+        let exitPrice: number;
+        let extensionPrice: number;
+
+        if (beta >= 0) {
+          // 정방향 (QLD, TQQQ 등): QQQ 지지선 진입 -> 저항선 익절
+          entryPrice = currentPrice * (1 + beta * (s.entryPrice / qPrice - 1));
+          exitPrice = currentPrice * (1 + beta * (s.exitPrice / qPrice - 1));
+          extensionPrice =
+            currentPrice * (1 + beta * (s.extensionPrice / qPrice - 1));
+        } else {
+          // 역방향 (SQQQ 등): QQQ 저항선 진입 -> 지지선 익절
+          // QQQ가 고점(s.exitPrice)일 때 인버스 진입, 저점(s.entryPrice)일 때 익절
+          entryPrice = currentPrice * (1 + beta * (s.exitPrice / qPrice - 1));
+          exitPrice = currentPrice * (1 + beta * (s.entryPrice / qPrice - 1));
+          // 인버스의 확장 익절은 QQQ가 지지선을 뚫고 더 내려가는 시나리오
+          extensionPrice =
+            currentPrice * (1 + beta * (s.entryPrice * 0.98 / qPrice - 1));
+        }
+
         const profit = ((exitPrice - entryPrice) / entryPrice) * 100;
         const extensionProfit =
           ((extensionPrice - entryPrice) / entryPrice) * 100;
@@ -959,7 +975,10 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           extensionPrice,
           profit,
           extensionProfit,
-          description: s.description.replace("QQQ", String(symbol).toUpperCase()),
+          description:
+            beta >= 0
+              ? s.description.replace("QQQ", String(symbol).toUpperCase())
+              : `${s.entryDate} ~ ${s.exitDate} 하락 베팅: QQQ 저항선($${s.exitPrice.toFixed(2)}) 부근 진입 시나리오`,
         };
       });
     }
