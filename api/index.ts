@@ -33,7 +33,7 @@ const IV_CLAMP_MAX = 5.0;
 /**
  * 수치 안전화 헬퍼 (NaN 방지)
  */
-const safeNum = (val: any, fallback: number = 0): number => {
+const safeNum = (val: unknown, fallback: number = 0): number => {
   return typeof val === "number" && isFinite(val) ? val : fallback;
 };
 
@@ -464,20 +464,22 @@ const processOption = (
       type,
       underlying: adjustedSpot,
     });
-    gamma = result.gamma;
+    gamma = safeNum(result.gamma, 0);
   } catch {
     // gamma = 0
   }
 
   // Dollar Notional GEX (주가 1% 변동 시 발생하는 명목 노출액)
   // ✅ 주의: OI 기반의 방향 가정(Proxy)이며, 실제 딜러 포지션과 다를 수 있음
-  const gammaExposure =
+  const gammaExposure = safeNum(
     (type === "call" ? 1 : -1) *
-    gamma *
-    openInterest *
-    100 *
-    (spotPrice * spotPrice) *
-    0.01;
+      gamma *
+      openInterest *
+      100 *
+      (spotPrice * spotPrice) *
+      0.01,
+    0
+  );
 
   return {
     ...option,
@@ -587,6 +589,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     const results = await Promise.all(
       finalExpirations.map(async (d) => {
         const originalDate = d; // ✅ 야후 API 호출용 원본 객체 보존
+        const dateString = String(originalDate);
         try {
           // ✅ 날짜 문자열(YYYY-MM-DD)을 추출하여 뉴욕 시간대의 16:00으로 설정
           // 이렇게 해야 UTC 자정(NY 전날 저녁) 문제를 방지하고 정확한 오늘 만기를 계산합니다.
@@ -1018,14 +1021,14 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       trendForecast,
       diagnostics,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Analysis Error:", err);
-    const errorMsg = err?.message || String(err);
-    
+    const errorMsg = err instanceof Error ? err.message : String(err);
+
     // 최소한의 응답 보장
     response.status(500).json({
       error: errorMsg,
-      diagnostics: diagnostics
+      diagnostics: diagnostics,
     });
   }
 });
