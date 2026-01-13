@@ -67,7 +67,7 @@ const calculateManualBeta = async (
       }
     });
 
-    if (commonData.length < 20) return 1.0; // 데이터가 너무 적으면 기본값
+    if (commonData.length < 10) return 1.0; // 데이터가 너무 적으면 기본값 (1개월 분석 대응을 위해 20 -> 10으로 하향)
 
     // 일일 수익률 계산
     const tickerReturns: number[] = [];
