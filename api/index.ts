@@ -141,8 +141,8 @@ const calculateNetGexAtSpot = (
       // 만기가 짧을 때 IV가 너무 낮으면 감마가 0이 되는 현상을 막기 위해 Floor(10%) 적용
       const ivRaw = opt.impliedVolatility;
       const sigma =
-        typeof ivRaw === "number" && isFinite(ivRaw) 
-          ? Math.max(0.10, ivRaw) // 최소 10% 변동성 가정으로 에너지 분포 확보
+        typeof ivRaw === "number" && isFinite(ivRaw)
+          ? Math.max(0.1, ivRaw) // 최소 10% 변동성 가정으로 에너지 분포 확보
           : 0.2;
 
       const result = blackScholes.option({
@@ -180,7 +180,7 @@ const findTrueGammaFlip = (
 ): number => {
   if (options.length === 0) return currentSpot;
 
-  const scanRange = 0.10; // 현재가 기준 ±10% 탐색
+  const scanRange = 0.1; // 현재가 기준 ±10% 탐색
   let low = currentSpot * (1 - scanRange);
   let high = currentSpot * (1 + scanRange);
 
@@ -435,8 +435,7 @@ const processOption = (
       ? Math.round(Number(option.volume) * 0.1)
       : 1;
 
-  const adjustedSpot =
-    spotPrice * Math.exp(-DIVIDEND_YIELD * timeToExpiration);
+  const adjustedSpot = spotPrice * Math.exp(-DIVIDEND_YIELD * timeToExpiration);
   const ivRaw = option.impliedVolatility;
 
   let impliedVolatility: number;
@@ -461,7 +460,7 @@ const processOption = (
   );
 
   // ✅ GEX 프로파일링을 위한 IV 보정 (에너지 증발 방지)
-  const greekSigma = Math.max(0.10, impliedVolatility);
+  const greekSigma = Math.max(0.1, impliedVolatility);
 
   let gamma = 0;
   try {
@@ -582,7 +581,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     const filterLimit = todayStart.add(30, "day");
 
     // ✅ 진단 로그 강화
-    const buildVersion = "2026-01-13-v3"; 
+    const buildVersion = "2026-01-13-v3";
     addLog(`[System] Version: ${buildVersion}`);
     addLog(`[System] NY Current: ${now.format("YYYY-MM-DD HH:mm:ss")}`);
 
@@ -606,7 +605,10 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       targetExpirations.length >= 5
         ? targetExpirations
         : rawExpirationDates
-            .filter((d) => dayjs(d).utc().format("YYYY-MM-DD") >= now.format("YYYY-MM-DD"))
+            .filter(
+              (d) =>
+                dayjs(d).utc().format("YYYY-MM-DD") >= now.format("YYYY-MM-DD")
+            )
             .slice(0, 5);
 
     diagnostics.step = "process_expirations";
@@ -618,8 +620,12 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           // ✅ 날짜 문자열(YYYY-MM-DD)을 추출하여 뉴욕 시간대의 16:00으로 설정
           // 이렇게 해야 UTC 자정(NY 전날 저녁) 문제를 방지하고 정확한 오늘 만기를 계산합니다.
           const expDateStr = dayjs(originalDate).utc().format("YYYY-MM-DD");
-          const dateObj = dayjs.tz(expDateStr, "America/New_York").hour(16).minute(0).second(0);
-          
+          const dateObj = dayjs
+            .tz(expDateStr, "America/New_York")
+            .hour(16)
+            .minute(0)
+            .second(0);
+
           const details = await yahooFinance.options("QQQ", {
             date: originalDate, // ✅ 야후 API에는 원래의 Date 객체 전달
           });
@@ -636,7 +642,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
           // ✅ 잔존 만기 계산 (0DTE 대응)
           const timeDiff = dateObj.diff(now, "year", true);
-          
+
           // 이미 만료된 경우 (시간이 마감 시간을 지난 경우) 에너지를 0으로 만들기 위해 아주 작은 값 부여 또는 제외
           const isExpired = timeDiff <= 0;
           const timeToExpiration = isExpired ? 0.000001 : timeDiff;
@@ -644,20 +650,30 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           // 1) 전체 데이터 기준 PCR 계산 (보정 로직 적용)
           const allCallsRaw = expirationData.calls || [];
           const allPutsRaw = expirationData.puts || [];
-          
-          const sumOI = (options: { openInterest?: number | string; volume?: number | string }[]) => options.reduce(
-            (acc, opt) => acc + (Number(opt.openInterest) || (opt.volume ? Math.round(Number(opt.volume) * 0.1) : 0) || 1), 
-            0
-          );
+
+          const sumOI = (
+            options: {
+              openInterest?: number | string;
+              volume?: number | string;
+            }[]
+          ) =>
+            options.reduce(
+              (acc, opt) =>
+                acc +
+                (Number(opt.openInterest) ||
+                  (opt.volume ? Math.round(Number(opt.volume) * 0.1) : 0) ||
+                  1),
+              0
+            );
 
           const totalCallOI_All = sumOI(allCallsRaw);
           const totalPutOI_All = sumOI(allPutsRaw);
-          
+
           const pcrAll =
             totalCallOI_All > 0 ? totalPutOI_All / totalCallOI_All : 0;
 
           // 2) 정밀 분석용 Moneyness ±10% 이내 필터링 (기존 15%에서 강화)
-          const filterRange = 0.10;
+          const filterRange = 0.1;
           const filteredCallsRaw = allCallsRaw.filter(
             (opt: { strike: number }) =>
               opt.strike > currentPrice * (1 - filterRange) &&
@@ -765,14 +781,14 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
               15,
               100 - Math.abs(rawUpProb - rawDownProb) * 1.2 - 10
             );
-            
+
             const remaining = 100 - neutralProb;
             const ratio = rawUpProb / (rawUpProb + rawDownProb);
-            
+
             // 방향성 확률이 88%를 넘지 않도록 캡(Cap) 적용 (금융 시장의 불확실성 반영)
             upProb = Math.min(88, remaining * ratio);
             downProb = Math.min(88, remaining * (1 - ratio));
-            
+
             // 캡 적용 후 남는 확률을 다시 중립에 보태줌
             neutralProb = 100 - upProb - downProb;
           }
@@ -971,7 +987,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         ...combinations.sort((a, b) => b.profit - a.profit).slice(0, 3)
       );
     }
-
+    // ✅ 세부 구간별 상승/하락 추세 도출 (가격 레벨 이동 기준 반영)
+    const getPriceLevel = (r: ExpirationAnalysis) =>
+      (r.putSupport + r.callResistance) / 2;
     // 6) 추세 및 확률 예측 로직
     const trendForecast: TrendForecast[] = [];
     const segmentedTrends: SegmentedTrend[] = [];
@@ -979,6 +997,8 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     if (validResults.length >= 2) {
       const first = validResults[0];
       const last = validResults[validResults.length - 1];
+
+      const sentimentDiff = last.sentiment - first.sentiment;
 
       // 전체 가격 변동 확인
       const lastPriceLevel = getPriceLevel(last);
@@ -1013,22 +1033,27 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         description: desc,
       });
 
-      // ✅ 세부 구간별 상승/하락 추세 도출 (가격 레벨 이동 기준 반영)
-      const getPriceLevel = (r: ExpirationAnalysis) => (r.putSupport + r.callResistance) / 2;
-      
       const trendPoints = [
-        { date: "현재", price: currentPrice, sentiment: validResults[0].sentiment }, // 기준점
-        ...validResults.map(r => ({ date: r.date, price: getPriceLevel(r), sentiment: r.sentiment }))
+        {
+          date: "현재",
+          price: currentPrice,
+          sentiment: validResults[0].sentiment,
+        }, // 기준점
+        ...validResults.map((r) => ({
+          date: r.date,
+          price: getPriceLevel(r),
+          sentiment: r.sentiment,
+        })),
       ];
 
       let currentStartIdx = 0;
       for (let i = 1; i < trendPoints.length; i++) {
         const prev = trendPoints[i - 1];
         const curr = trendPoints[i];
-        
+
         const priceDiff = curr.price - prev.price;
         const sDiff = curr.sentiment - prev.sentiment;
-        
+
         let segmentDir: "상승" | "하락" | "횡보" = "횡보";
         // 가격 이동을 최우선으로 판정 (0.1% 이상 변동 시)
         if (priceDiff > currentPrice * 0.001) {
@@ -1041,21 +1066,29 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         // 다음 지점의 방향 확인 (루프 통합을 위해)
         let nextDir: "상승" | "하락" | "횡보" | null = null;
         if (!isLast) {
-          const nextPriceDiff = trendPoints[i+1].price - curr.price;
-          const nextSDiff = trendPoints[i+1].sentiment - curr.sentiment;
-          if (nextPriceDiff > currentPrice * 0.001) nextDir = nextSDiff > -5 ? "상승" : "횡보";
-          else if (nextPriceDiff < -currentPrice * 0.001) nextDir = nextSDiff < 5 ? "하락" : "횡보";
+          const nextPriceDiff = trendPoints[i + 1].price - curr.price;
+          const nextSDiff = trendPoints[i + 1].sentiment - curr.sentiment;
+          if (nextPriceDiff > currentPrice * 0.001)
+            nextDir = nextSDiff > -5 ? "상승" : "횡보";
+          else if (nextPriceDiff < -currentPrice * 0.001)
+            nextDir = nextSDiff < 5 ? "하락" : "횡보";
           else nextDir = "횡보";
         }
 
         if (isLast || segmentDir !== nextDir) {
           segmentedTrends.push({
-            startDate: trendPoints[currentStartIdx].date === "현재" ? "현재" : trendPoints[currentStartIdx].date,
+            startDate:
+              trendPoints[currentStartIdx].date === "현재"
+                ? "현재"
+                : trendPoints[currentStartIdx].date,
             endDate: curr.date,
             direction: segmentDir,
-            description: segmentDir === "상승" 
-              ? `가격 레벨 상향 및 매수세 강화 구간` 
-              : (segmentDir === "하락" ? `가격 레벨 하향 및 매도 압력 구간` : `에너지 균형 및 박스권 구간`),
+            description:
+              segmentDir === "상승"
+                ? `가격 레벨 상향 및 매수세 강화 구간`
+                : segmentDir === "하락"
+                ? `가격 레벨 하향 및 매도 압력 구간`
+                : `에너지 균형 및 박스권 구간`,
           });
           currentStartIdx = i;
         }
@@ -1098,8 +1131,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       options: validResults[0].options,
       totalNetGEX: `${(validResults[0].totalGex / 1e9).toFixed(2)}B USD/1%`,
       // 리서치 제언: 가격이 감마 플립보다 위에 있으면 안정(Stabilizing), 아래면 변동(Volatile)
-      marketRegime:
-        currentPrice > globalGammaFlip ? "Stabilizing" : "Volatile",
+      marketRegime: currentPrice > globalGammaFlip ? "Stabilizing" : "Volatile",
       gammaFlip: globalGammaFlip, // ✅ 통합 글로벌 플립 적용
       volTrigger: globalVolTrigger, // ✅ 통합 글로벌 트리거 적용
       timeSeries: validResults.map((result) => ({
@@ -1308,16 +1340,22 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           // 인버스 종목은 방향 및 심리 완벽 반전
           if (direction === "상승") direction = "하락";
           else if (direction === "하락") direction = "상승";
-          
+
           description = description
-            .replace("매수 우위", "TMP_BUY").replace("매도 압력", "매수 우위").replace("TMP_BUY", "매도 압력")
-            .replace("상향", "TMP_UP").replace("하향", "상향").replace("TMP_UP", "하향");
+            .replace("매수 우위", "TMP_BUY")
+            .replace("매도 압력", "매수 우위")
+            .replace("TMP_BUY", "매도 압력")
+            .replace("상향", "TMP_UP")
+            .replace("하향", "상향")
+            .replace("TMP_UP", "하향");
         }
 
         return {
           ...s,
           direction,
-          description: description.replace("지지선", "기대 지지선").replace("저항선", "기대 저항선"),
+          description: description
+            .replace("지지선", "기대 지지선")
+            .replace("저항선", "기대 저항선"),
         };
       });
     }
@@ -1325,16 +1363,22 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
     // ✅ 감마 심리 로드맵 계산 (인버스 완벽 대응)
     let tickerSentimentRoadmap: SentimentRoadmap[] | undefined = undefined;
     if (Array.isArray(qqqSentimentRoadmap)) {
-      tickerSentimentRoadmap = qqqSentimentRoadmap.map((s: SentimentRoadmap) => {
-        let label = s.label;
-        if (beta < 0) {
-          // 인버스 종목은 심리 라벨 반전 (상승/하락 및 매수/매도)
-          label = label
-            .replace("매수", "TMP_BUY").replace("매도", "매수").replace("TMP_BUY", "매도")
-            .replace("상승", "TMP_UP").replace("하락", "상승").replace("TMP_UP", "하락");
+      tickerSentimentRoadmap = qqqSentimentRoadmap.map(
+        (s: SentimentRoadmap) => {
+          let label = s.label;
+          if (beta < 0) {
+            // 인버스 종목은 심리 라벨 반전 (상승/하락 및 매수/매도)
+            label = label
+              .replace("매수", "TMP_BUY")
+              .replace("매도", "매수")
+              .replace("TMP_BUY", "매도")
+              .replace("상승", "TMP_UP")
+              .replace("하락", "상승")
+              .replace("TMP_UP", "하락");
+          }
+          return { ...s, label };
         }
-        return { ...s, label };
-      });
+      );
     }
 
     // ✅ 전체 추세 예측 계산 (인버스 완벽 대응)
@@ -1349,9 +1393,15 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           else if (direction === "하락") direction = "상승";
 
           description = description
-            .replace("매수세", "TMP_BUY").replace("매도 압력", "매수세").replace("TMP_BUY", "매도 압력")
-            .replace("강화", "TMP_STR").replace("약화", "강화").replace("TMP_STR", "약화")
-            .replace("상승", "TMP_UP").replace("하락", "상승").replace("TMP_UP", "하락");
+            .replace("매수세", "TMP_BUY")
+            .replace("매도 압력", "매수세")
+            .replace("TMP_BUY", "매도 압력")
+            .replace("강화", "TMP_STR")
+            .replace("약화", "강화")
+            .replace("TMP_STR", "약화")
+            .replace("상승", "TMP_UP")
+            .replace("하락", "상승")
+            .replace("TMP_UP", "하락");
         }
 
         return {
