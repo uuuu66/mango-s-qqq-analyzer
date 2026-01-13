@@ -61,6 +61,13 @@ export interface TrendForecast {
   description: string;
 }
 
+export interface SegmentedTrend {
+  startDate: string;
+  endDate: string;
+  direction: "상승" | "하락" | "횡보";
+  description: string;
+}
+
 export interface AnalysisResult {
   currentPrice: number;
   dataTimestamp?: string;
@@ -76,6 +83,7 @@ export interface AnalysisResult {
   recommendations: Recommendation[];
   swingScenarios?: SwingScenario[];
   trendForecast?: TrendForecast[];
+  segmentedTrends?: SegmentedTrend[];
 }
 
 export interface TickerTimeSeriesData {
@@ -101,6 +109,7 @@ export interface TickerAnalysis {
   changePercent: number;
   timeSeries?: TickerTimeSeriesData[];
   swingScenarios?: SwingScenario[];
+  segmentedTrends?: SegmentedTrend[];
 }
 
 export const fetchTickerAnalysis = async (
@@ -112,7 +121,8 @@ export const fetchTickerAnalysis = async (
   qqqMax: number,
   months: number = 3,
   qqqTimeSeries?: TimeSeriesData[],
-  qqqSwingScenarios?: SwingScenario[]
+  qqqSwingScenarios?: SwingScenario[],
+  qqqSegmentedTrends?: SegmentedTrend[]
 ): Promise<TickerAnalysis> => {
   const response = await fetch(`/api/ticker-analysis`, {
     method: "POST",
@@ -129,6 +139,7 @@ export const fetchTickerAnalysis = async (
       months,
       qqqTimeSeries,
       qqqSwingScenarios,
+      qqqSegmentedTrends,
     }),
   });
   if (!response.ok) {

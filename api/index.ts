@@ -25,8 +25,6 @@ const DIVIDEND_YIELD = 0.006;
 
 // ✅ 하이퍼파라미터 안전한 기본값 보장
 const VOLATILITY_TRIGGER_RATIO = 0.985;
-const NEUTRAL_PROB_WEIGHT = 1.5;
-const NEUTRAL_PROB_BASE_OFFSET = 20;
 const IV_CLAMP_MIN = 0.0001;
 const IV_CLAMP_MAX = 5.0;
 
@@ -275,6 +273,7 @@ interface TickerAnalysis {
   changePercent: number;
   timeSeries?: TickerTimeSeriesData[];
   swingScenarios?: SwingScenario[];
+  segmentedTrends?: SegmentedTrend[]; // ✅ 추가된 필드
 }
 
 interface DiagnosticDetail {
@@ -521,6 +520,13 @@ interface TrendForecast {
   description: string;
 }
 
+interface SegmentedTrend {
+  startDate: string;
+  endDate: string;
+  direction: "상승" | "하락" | "횡보";
+  description: string;
+}
+
 app.get("/api/analysis", async (_request: Request, response: Response) => {
   const diagnostics: Diagnostics = {
     step: "init",
@@ -630,8 +636,8 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const allCallsRaw = expirationData.calls || [];
           const allPutsRaw = expirationData.puts || [];
           
-          const sumOI = (options: any[]) => options.reduce(
-            (acc, opt) => acc + (opt.openInterest || (opt.volume ? Math.round(opt.volume * 0.1) : 0) || 1), 
+          const sumOI = (options: { openInterest?: number | string; volume?: number | string }[]) => options.reduce(
+            (acc, opt) => acc + (Number(opt.openInterest) || (opt.volume ? Math.round(Number(opt.volume) * 0.1) : 0) || 1), 
             0
           );
 
@@ -959,6 +965,8 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
     // 6) 추세 및 확률 예측 로직
     const trendForecast: TrendForecast[] = [];
+    const segmentedTrends: SegmentedTrend[] = [];
+
     if (validResults.length >= 2) {
       const first = validResults[0];
       const last = validResults[validResults.length - 1];
@@ -993,6 +1001,41 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         probability: Math.round(prob),
         description: desc,
       });
+
+      // ✅ 세부 구간별 상승/하락 추세 도출
+      let currentStartIdx = 0;
+      for (let i = 1; i < validResults.length; i++) {
+        const prev = validResults[i - 1];
+        const curr = validResults[i];
+        
+        const sDiff = curr.sentiment - prev.sentiment;
+        const gDiff = curr.totalGex - prev.totalGex;
+        
+        let segmentDir: "상승" | "하락" | "횡보" = "횡보";
+        if (sDiff > 5 || gDiff > 0) segmentDir = "상승";
+        else if (sDiff < -5 || gDiff < 0) segmentDir = "하락";
+
+        // 마지막 요소이거나 방향이 바뀌면 세그먼트 저장
+        const isLast = i === validResults.length - 1;
+        const next = !isLast ? validResults[i + 1] : null;
+        let nextDir: "상승" | "하락" | "횡보" = "횡보";
+        if (next) {
+          const nsDiff = next.sentiment - curr.sentiment;
+          const ngDiff = next.totalGex - curr.totalGex;
+          if (nsDiff > 5 || ngDiff > 0) nextDir = "상승";
+          else if (nsDiff < -5 || ngDiff < 0) nextDir = "하락";
+        }
+
+        if (isLast || segmentDir !== nextDir) {
+          segmentedTrends.push({
+            startDate: validResults[currentStartIdx].date,
+            endDate: curr.date,
+            direction: segmentDir,
+            description: segmentDir === "상승" ? "매수 우위 및 지지선 상향 구간" : (segmentDir === "하락" ? "매도 압력 및 저항선 하향 구간" : "에너지 균형 및 횡보 구간"),
+          });
+          currentStartIdx = i;
+        }
+      }
     }
 
     response.json({
@@ -1034,6 +1077,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       })),
       swingScenarios,
       trendForecast,
+      segmentedTrends, // ✅ 추가된 필드
       diagnostics,
     });
   } catch (err: unknown) {
@@ -1062,6 +1106,7 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
     months,
     qqqTimeSeries,
     qqqSwingScenarios,
+    qqqSegmentedTrends, // ✅ 추가된 필드
   } = req.body;
 
   if (!symbol) {
@@ -1199,6 +1244,28 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
       });
     }
 
+    // ✅ 세부 구간별 상승/하락 추세 계산 (베타 보정)
+    let tickerSegmentedTrends: SegmentedTrend[] | undefined = undefined;
+    if (Array.isArray(qqqSegmentedTrends)) {
+      tickerSegmentedTrends = qqqSegmentedTrends.map((s: SegmentedTrend) => {
+        let direction = s.direction;
+        let description = s.description;
+
+        if (beta < 0) {
+          // 인버스 종목은 방향 반전
+          if (direction === "상승") direction = "하락";
+          else if (direction === "하락") direction = "상승";
+          description = description.replace("매수 우위", "매도 압력").replace("매도 압력", "매수 우위");
+        }
+
+        return {
+          ...s,
+          direction,
+          description: description.replace("지지선", "기대 지지선").replace("저항선", "기대 저항선"),
+        };
+      });
+    }
+
     const analysis: TickerAnalysis = {
       symbol: String(symbol).toUpperCase(),
       currentPrice,
@@ -1210,6 +1277,7 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
       changePercent: quote.regularMarketChangePercent || 0,
       timeSeries: tickerTimeSeries,
       swingScenarios: tickerSwingScenarios,
+      segmentedTrends: tickerSegmentedTrends, // ✅ 추가된 필드
     };
 
     res.json(analysis);

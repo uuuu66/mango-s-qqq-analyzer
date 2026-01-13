@@ -134,7 +134,8 @@ const App: React.FC = () => {
         qqqMax,
         betaPeriod,
         data.timeSeries,
-        data.swingScenarios
+        data.swingScenarios,
+        data.segmentedTrends
       );
       setTickerAnalysis(result);
     } catch (err: unknown) {
@@ -212,6 +213,14 @@ const App: React.FC = () => {
         text += `  Direction: ${t.direction}\n`;
         text += `  Probability: ${t.probability}%\n`;
         text += `  Description: ${t.description}\n`;
+      });
+      text += `\n`;
+    }
+
+    if (data.segmentedTrends && data.segmentedTrends.length > 0) {
+      text += `[ Detailed Segmented Trend Forecast ]\n`;
+      data.segmentedTrends.forEach((trend) => {
+        text += `- ${trend.startDate} ~ ${trend.endDate}: ${trend.direction} (${trend.description})\n`;
       });
       text += `\n`;
     }
@@ -871,6 +880,52 @@ const App: React.FC = () => {
                 추세 분석을 위한 데이터가 부족합니다.
               </p>
             )}
+
+            {/* ✅ 세부 구간별 추세 예측 표시 */}
+            {data?.segmentedTrends && data.segmentedTrends.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-slate-100">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <Info className="w-3 h-3" /> 세부 구간별 예상 경로
+                </h4>
+                <div className="space-y-3">
+                  {data.segmentedTrends.map((trend, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            trend.direction === "상승"
+                              ? "bg-emerald-500 animate-pulse"
+                              : trend.direction === "하락"
+                              ? "bg-red-500"
+                              : "bg-slate-300"
+                          }`}
+                        />
+                        <span className="text-[11px] font-bold text-slate-600 font-mono">
+                          {trend.startDate} ~ {trend.endDate}
+                        </span>
+                        <span
+                          className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${
+                            trend.direction === "상승"
+                              ? "text-emerald-600 bg-emerald-50"
+                              : trend.direction === "하락"
+                              ? "text-red-600 bg-red-50"
+                              : "text-slate-500 bg-slate-100"
+                          }`}
+                        >
+                          {trend.direction}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-medium italic">
+                        {trend.description}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1310,6 +1365,54 @@ const App: React.FC = () => {
                               </span>
                             </div>
                           </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {/* ✅ 티커 세부 구간별 추세 예측 표시 */}
+              {tickerAnalysis.segmentedTrends &&
+                tickerAnalysis.segmentedTrends.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-slate-100">
+                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <TrendingUp className="w-3.5 h-3.5" />{" "}
+                      {tickerAnalysis.symbol} 기대 경로 (Segmented Trends)
+                    </h4>
+                    <div className="space-y-3">
+                      {tickerAnalysis.segmentedTrends.map((trend, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-slate-100"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div
+                              className={`w-2.5 h-2.5 rounded-full ${
+                                trend.direction === "상승"
+                                  ? "bg-emerald-500 animate-pulse"
+                                  : trend.direction === "하락"
+                                  ? "bg-red-500"
+                                  : "bg-slate-300"
+                              }`}
+                            />
+                            <span className="text-xs font-bold text-slate-700 font-mono">
+                              {trend.startDate} ~ {trend.endDate}
+                            </span>
+                            <span
+                              className={`text-[11px] font-black px-2.5 py-1 rounded-lg uppercase ${
+                                trend.direction === "상승"
+                                  ? "text-emerald-600 bg-emerald-50"
+                                  : trend.direction === "하락"
+                                  ? "text-red-600 bg-red-50"
+                                  : "text-slate-500 bg-slate-100"
+                              }`}
+                            >
+                              {trend.direction}
+                            </span>
+                          </div>
+                          <span className="text-xs text-slate-500 font-medium italic">
+                            {trend.description}
+                          </span>
                         </div>
                       ))}
                     </div>
