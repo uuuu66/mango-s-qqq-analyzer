@@ -68,6 +68,13 @@ export interface SegmentedTrend {
   description: string;
 }
 
+export interface SentimentRoadmap {
+  date: string;
+  sentiment: number;
+  label: string;
+  timeLabel: string;
+}
+
 export interface AnalysisResult {
   currentPrice: number;
   dataTimestamp?: string;
@@ -84,6 +91,7 @@ export interface AnalysisResult {
   swingScenarios?: SwingScenario[];
   trendForecast?: TrendForecast[];
   segmentedTrends?: SegmentedTrend[];
+  sentimentRoadmap?: SentimentRoadmap[];
 }
 
 export interface TickerTimeSeriesData {
@@ -110,6 +118,7 @@ export interface TickerAnalysis {
   timeSeries?: TickerTimeSeriesData[];
   swingScenarios?: SwingScenario[];
   segmentedTrends?: SegmentedTrend[];
+  sentimentRoadmap?: SentimentRoadmap[];
 }
 
 export const fetchTickerAnalysis = async (
@@ -122,7 +131,8 @@ export const fetchTickerAnalysis = async (
   months: number = 3,
   qqqTimeSeries?: TimeSeriesData[],
   qqqSwingScenarios?: SwingScenario[],
-  qqqSegmentedTrends?: SegmentedTrend[]
+  qqqSegmentedTrends?: SegmentedTrend[],
+  qqqSentimentRoadmap?: SentimentRoadmap[]
 ): Promise<TickerAnalysis> => {
   const response = await fetch(`/api/ticker-analysis`, {
     method: "POST",
@@ -140,6 +150,7 @@ export const fetchTickerAnalysis = async (
       qqqTimeSeries,
       qqqSwingScenarios,
       qqqSegmentedTrends,
+      qqqSentimentRoadmap,
     }),
   });
   if (!response.ok) {

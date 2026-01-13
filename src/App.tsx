@@ -135,7 +135,8 @@ const App: React.FC = () => {
         betaPeriod,
         data.timeSeries,
         data.swingScenarios,
-        data.segmentedTrends
+        data.segmentedTrends,
+        data.sentimentRoadmap
       );
       setTickerAnalysis(result);
     } catch (err: unknown) {
@@ -221,6 +222,14 @@ const App: React.FC = () => {
       text += `[ Detailed Segmented Trend Forecast ]\n`;
       data.segmentedTrends.forEach((trend) => {
         text += `- ${trend.startDate} ~ ${trend.endDate}: ${trend.direction} (${trend.description})\n`;
+      });
+      text += `\n`;
+    }
+
+    if (data.sentimentRoadmap && data.sentimentRoadmap.length > 0) {
+      text += `[ Sentiment Roadmap ]\n`;
+      data.sentimentRoadmap.forEach((s) => {
+        text += `- ${s.date} (${s.timeLabel}): Sentiment ${s.sentiment.toFixed(1)} (${s.label})\n`;
       });
       text += `\n`;
     }
@@ -926,6 +935,46 @@ const App: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* ✅ 감마 심리 로드맵 표시 */}
+            {data?.sentimentRoadmap && data.sentimentRoadmap.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-slate-100">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <Info className="w-3 h-3" /> 감마 심리 로드맵 (Sentiment Roadmap)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {data.sentimentRoadmap.map((s, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100 shadow-sm"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-[11px] font-bold text-slate-400 w-16">
+                          {s.date}
+                          <span className="ml-1 text-[9px] text-blue-400">({s.timeLabel})</span>
+                        </span>
+                        <div className="flex flex-col">
+                          <span className={`text-[11px] font-black ${
+                            s.sentiment > 10 ? "text-emerald-600" : s.sentiment < -10 ? "text-red-600" : "text-slate-600"
+                          }`}>
+                            {s.label}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-mono">
+                            Score: {s.sentiment.toFixed(1)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-12 h-1 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full ${s.sentiment > 0 ? "bg-emerald-500" : "bg-red-500"}`}
+                          style={{ width: `${Math.min(100, Math.abs(s.sentiment))}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1413,6 +1462,48 @@ const App: React.FC = () => {
                           <span className="text-xs text-slate-500 font-medium italic">
                             {trend.description}
                           </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {/* ✅ 티커 감마 심리 로드맵 표시 */}
+              {tickerAnalysis.sentimentRoadmap &&
+                tickerAnalysis.sentimentRoadmap.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-slate-100">
+                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <TrendingUp className="w-3.5 h-3.5" />{" "}
+                      {tickerAnalysis.symbol} 심리 로드맵 (Sentiment Roadmap)
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {tickerAnalysis.sentimentRoadmap.map((s, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-3 bg-slate-50/50 rounded-2xl border border-slate-100"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-bold text-slate-500 w-16">
+                              {s.date}
+                              <span className="ml-1 text-[9px] text-blue-400">({s.timeLabel})</span>
+                            </span>
+                            <div className="flex flex-col">
+                              <span className={`text-[11px] font-black ${
+                                s.sentiment > 10 ? "text-emerald-600" : s.sentiment < -10 ? "text-red-600" : "text-slate-600"
+                              }`}>
+                                {s.label}
+                              </span>
+                              <span className="text-[9px] text-slate-400 font-mono">
+                                Score: {s.sentiment.toFixed(1)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="w-12 h-1 bg-white rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full ${s.sentiment > 0 ? "bg-emerald-500" : "bg-red-500"}`}
+                              style={{ width: `${Math.min(100, Math.abs(s.sentiment))}%` }}
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
