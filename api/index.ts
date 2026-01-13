@@ -421,12 +421,12 @@ const processOption = (
 ): ProcessedOption => {
   // console.log(`[PROCESS] calling blackscholes for strike ${option.strike}`);
   const strike = Number(option.strike);
-  // ✅ OI가 0인 경우 거래량(volume)을 일부 참고하여 에너지 계산 가능하도록 보정
+  // ✅ OI가 0인 경우 거래량(volume)을 일부 참고하여 에너지 계산 가능하도록 보정 (정수화)
   const openInterest =
     Number(option.openInterest) > 0
-      ? Number(option.openInterest)
+      ? Math.round(Number(option.openInterest))
       : Number(option.volume) > 0
-      ? Number(option.volume) * 0.1
+      ? Math.round(Number(option.volume) * 0.1)
       : 1;
 
   const adjustedSpot =
@@ -617,22 +617,23 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const isExpired = timeDiff <= 0;
           const timeToExpiration = isExpired ? 0.000001 : timeDiff;
 
-          // 1) 전체 데이터 기준 PCR 계산 (연구 데이터 대조용)
+          // 1) 전체 데이터 기준 PCR 계산 (보정 로직 적용)
           const allCallsRaw = expirationData.calls || [];
           const allPutsRaw = expirationData.puts || [];
-          const totalCallOI_All = allCallsRaw.reduce(
-            (acc, opt) => acc + (opt.openInterest || 0),
+          
+          const sumOI = (options: any[]) => options.reduce(
+            (acc, opt) => acc + (opt.openInterest || (opt.volume ? Math.round(opt.volume * 0.1) : 0) || 1), 
             0
           );
-          const totalPutOI_All = allPutsRaw.reduce(
-            (acc, opt) => acc + (opt.openInterest || 0),
-            0
-          );
+
+          const totalCallOI_All = sumOI(allCallsRaw);
+          const totalPutOI_All = sumOI(allPutsRaw);
+          
           const pcrAll =
             totalCallOI_All > 0 ? totalPutOI_All / totalCallOI_All : 0;
 
-          // 2) 정밀 분석용 Moneyness 15% 이내 필터링
-          const filterRange = 0.15;
+          // 2) 정밀 분석용 Moneyness ±10% 이내 필터링 (기존 15%에서 강화)
+          const filterRange = 0.10;
           const filteredCallsRaw = allCallsRaw.filter(
             (opt: { strike: number }) =>
               opt.strike > currentPrice * (1 - filterRange) &&
@@ -730,21 +731,26 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           let downProb = 50;
           let neutralProb = 0;
 
-          // ✅ 1순위: GEX 에너지 기반 계산 시도
+          // ✅ 확률 계산 로직 고도화 (Smoothing & Cap 적용)
           if (totalEnergy > 0.0001) {
-            upProb = (totalCallEnergy / totalEnergy) * 100;
-            downProb = (totalPutEnergy / totalEnergy) * 100;
+            const rawUpProb = (totalCallEnergy / totalEnergy) * 100;
+            const rawDownProb = (totalPutEnergy / totalEnergy) * 100;
 
+            // 중립 확률 최솟값 보장 (에너지가 쏠려도 최소 15%는 관망세로 설정)
             neutralProb = Math.max(
-              0,
-              100 -
-                Math.abs(upProb - downProb) * NEUTRAL_PROB_WEIGHT -
-                NEUTRAL_PROB_BASE_OFFSET
+              15,
+              100 - Math.abs(rawUpProb - rawDownProb) * 1.2 - 10
             );
+            
             const remaining = 100 - neutralProb;
-            const ratio = upProb / (upProb + downProb);
-            upProb = remaining * ratio;
-            downProb = remaining * (1 - ratio);
+            const ratio = rawUpProb / (rawUpProb + rawDownProb);
+            
+            // 방향성 확률이 88%를 넘지 않도록 캡(Cap) 적용 (금융 시장의 불확실성 반영)
+            upProb = Math.min(88, remaining * ratio);
+            downProb = Math.min(88, remaining * (1 - ratio));
+            
+            // 캡 적용 후 남는 확률을 다시 중립에 보태줌
+            neutralProb = 100 - upProb - downProb;
           }
           // ✅ 2순위: 에너지가 증발했으면 수량(Open Interest) 기반으로 즉시 전환
           else if (filteredCallOI + filteredPutOI > 0) {
