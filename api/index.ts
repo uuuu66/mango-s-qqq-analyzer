@@ -45,14 +45,13 @@ const calculateManualBeta = async (
   benchmarkSymbol: string = "QQQ",
   months: number = 3
 ): Promise<number> => {
-  const now = new Date();
-  const ago = new Date();
-  ago.setMonth(now.getMonth() - months);
+  const now = dayjs().tz("America/New_York");
+  const ago = now.subtract(months, "month");
 
   try {
     // 티커와 벤치마크(QQQ)의 지정 기간 종가 데이터 가져오기
-    const period1 = ago.toISOString().split("T")[0];
-    const period2 = now.toISOString().split("T")[0];
+    const period1 = ago.format("YYYY-MM-DD");
+    const period2 = now.format("YYYY-MM-DD");
 
     const [tickerResult, benchmarkResult] = await Promise.all([
       yahooFinance.chart(symbol, {
