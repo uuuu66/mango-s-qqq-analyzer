@@ -560,20 +560,28 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     addLog(`[System] Version: ${buildVersion}`);
     addLog(`[System] NY Current: ${now.format("YYYY-MM-DD HH:mm:ss")}`);
 
-    const targetExpirations = rawExpirationDates.filter((d) => {
-      // ✅ Yahoo의 d는 UTC 자정입니다. 이를 문자열로 변환하여 뉴욕 오늘 날짜와 직접 비교합니다.
-      const expStr = dayjs(d).utc().format("YYYY-MM-DD");
-      const todayStr = now.format("YYYY-MM-DD");
-      const limitStr = filterLimit.format("YYYY-MM-DD");
-      
-      // 과거 날짜(오늘 이전)는 무조건 제외, 오늘부터 30일 이내만 포함
-      return expStr >= todayStr && expStr <= limitStr;
-    });
+    const targetExpirations = rawExpirationDates
+      .filter((d) => {
+        // ✅ Yahoo의 d는 UTC 자정입니다. 이를 문자열로 변환하여 뉴욕 오늘 날짜와 직접 비교합니다.
+        const expStr = dayjs(d).utc().format("YYYY-MM-DD");
+        const todayStr = now.format("YYYY-MM-DD");
+        // 과거 날짜(오늘 이전)는 무조건 제외
+        return expStr >= todayStr;
+      })
+      .filter((d) => {
+        const expStr = dayjs(d).utc().format("YYYY-MM-DD");
+        const limitStr = filterLimit.format("YYYY-MM-DD");
+        // 30일 이내 데이터만 우선 타겟팅
+        return expStr <= limitStr;
+      });
 
+    // 만약 30일 이내 데이터가 너무 적으면, 오늘 이후의 데이터 중 상위 5개를 선택
     const finalExpirations =
       targetExpirations.length >= 5
         ? targetExpirations
-        : rawExpirationDates.slice(0, 5);
+        : rawExpirationDates
+            .filter((d) => dayjs(d).utc().format("YYYY-MM-DD") >= now.format("YYYY-MM-DD"))
+            .slice(0, 5);
 
     diagnostics.step = "process_expirations";
     const results = await Promise.all(
