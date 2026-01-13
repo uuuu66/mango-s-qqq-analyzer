@@ -518,12 +518,15 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     );
 
     const now = new Date();
-    const filterLimit = new Date();
-    filterLimit.setDate(now.getDate() + 30);
+    // ✅ 오늘 만기 데이터(0DTE)를 포함하기 위해 비교용 시간을 오늘 자정으로 설정
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const filterLimit = new Date(todayStart);
+    filterLimit.setDate(todayStart.getDate() + 30);
 
     const targetExpirations = rawExpirationDates.filter((d) => {
       const expirationDate = new Date(d);
-      return expirationDate >= now && expirationDate <= filterLimit;
+      // 날짜가 오늘 이후이거나 오늘인 경우 포함
+      return expirationDate >= todayStart && expirationDate <= filterLimit;
     });
 
     const finalExpirations =
@@ -551,8 +554,12 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             return null;
           }
 
-          const timeToExpiration =
-            (dateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 365);
+          // ✅ 잔존 만기 계산 (0DTE 대응: 최소 1시간(약 0.0001년) 확보)
+          const timeDiff = dateObj.getTime() - now.getTime();
+          const timeToExpiration = Math.max(
+            timeDiff / (1000 * 60 * 60 * 24 * 365),
+            0.0001
+          );
 
           // 1) 전체 데이터 기준 PCR 계산 (연구 데이터 대조용)
           const allCallsRaw = expirationData.calls || [];
