@@ -524,6 +524,8 @@ interface TrendForecast {
 interface SegmentedTrend {
   startDate: string;
   endDate: string;
+  startPrice: number;
+  endPrice: number;
   direction: "상승" | "하락" | "횡보";
   description: string;
 }
@@ -1082,6 +1084,8 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
                 ? "현재"
                 : trendPoints[currentStartIdx].date,
             endDate: curr.date,
+            startPrice: trendPoints[currentStartIdx].price,
+            endPrice: curr.price,
             direction: segmentDir,
             description:
               segmentDir === "상승"

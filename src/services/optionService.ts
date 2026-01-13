@@ -64,6 +64,8 @@ export interface TrendForecast {
 export interface SegmentedTrend {
   startDate: string;
   endDate: string;
+  startPrice: number;
+  endPrice: number;
   direction: "상승" | "하락" | "횡보";
   description: string;
 }

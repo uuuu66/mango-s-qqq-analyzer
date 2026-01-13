@@ -913,9 +913,14 @@ const App: React.FC = () => {
                               : "bg-slate-300"
                           }`}
                         />
-                        <span className="text-[11px] font-bold text-slate-600 font-mono">
-                          {trend.startDate} ~ {trend.endDate}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-[11px] font-bold text-slate-600 font-mono">
+                            {trend.startDate} ~ {trend.endDate}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            ${trend.startPrice?.toFixed(2)} → ${trend.endPrice?.toFixed(2)}
+                          </span>
+                        </div>
                         <span
                           className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${
                             trend.direction === "상승"
@@ -1450,9 +1455,14 @@ const App: React.FC = () => {
                                   : "bg-slate-300"
                               }`}
                             />
-                            <span className="text-xs font-bold text-slate-700 font-mono">
-                              {trend.startDate} ~ {trend.endDate}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold text-slate-700 font-mono">
+                                {trend.startDate} ~ {trend.endDate}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                ${trend.startPrice?.toFixed(2)} → ${trend.endPrice?.toFixed(2)}
+                              </span>
+                            </div>
                             <span
                               className={`text-[11px] font-black px-2.5 py-1 rounded-lg uppercase ${
                                 trend.direction === "상승"
