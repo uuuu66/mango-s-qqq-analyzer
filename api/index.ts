@@ -980,8 +980,8 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const duration = j - i;
 
           // ✅ 현실적인 진입/청산가 산출 (Wall과 1-SD 기대값의 보수적 조합)
-          // 지지선(entry): Wall이 너무 낮으면(과매도 예상) 1-SD 기대 하단값을 지지선으로 채택
-          // 저항선(exit): Wall이 너무 높으면(과매수 예상) 1-SD 기대 상단값을 저항선으로 채택
+          // 지지선(entry): Wall과 1-SD 중 현재가에 더 가까운(높은) 값을 선택
+          // 저항선(exit): Wall과 1-SD 중 현재가에 더 가까운(낮은) 값을 선택
           const realisticEntry = Math.max(entry.putSupport, entry.expectedLower);
           const realisticExit = Math.min(exit.callResistance, exit.expectedUpper);
 
@@ -1300,43 +1300,45 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           expectedLower: number;
           priceProbability: { up: number; down: number; neutral: number };
         }) => {
-          const expectedSupport =
-            currentPrice * (1 + beta * (q.putSupport / qPrice - 1));
-          const expectedResistance =
+          // ✅ 1. QQQ 주요 지점에서의 티커 예상 가격 계산 (베타 적용)
+          const tAtQSupport = currentPrice * (1 + beta * (q.putSupport / qPrice - 1));
+          const tAtQResistance =
             currentPrice * (1 + beta * (q.callResistance / qPrice - 1));
-          const expectedUpper =
-            currentPrice * (1 + beta * (q.expectedUpper / qPrice - 1));
-          const expectedLower =
-            currentPrice * (1 + beta * (q.expectedLower / qPrice - 1));
+          const tAtQUpper = currentPrice * (1 + beta * (q.expectedUpper / qPrice - 1));
+          const tAtQLower = currentPrice * (1 + beta * (q.expectedLower / qPrice - 1));
 
-          // ✅ 현실적인 지지/저항 (Wall과 1-SD 기대범위의 교집합)
-          // 정방향: Support = Max(Wall, 1-SD Lower), Resistance = Min(Wall, 1-SD Upper)
-          // 역방향: Support = Min(Wall, 1-SD Upper), Resistance = Max(Wall, 1-SD Lower) (가격이 뒤집히므로)
-          const realisticSupport =
-            beta >= 0
-              ? Math.max(expectedSupport, expectedLower)
-              : Math.min(expectedSupport, expectedUpper);
-          const realisticResistance =
-            beta >= 0
-              ? Math.min(expectedResistance, expectedUpper)
-              : Math.max(expectedResistance, expectedLower);
+          // ✅ 2. 티커 기준의 상단(Upside)과 하단(Downside) 정의
+          // 정방향: Upside(저항선), Downside(지지선)
+          // 역방향: Upside(QQQ 하락시 가격상승), Downside(QQQ 상승시 가격하락)
+          let tUpsideWall: number,
+            tDownsideWall: number,
+            tUpsideLimit: number,
+            tDownsideLimit: number;
+
+          if (beta >= 0) {
+            tUpsideWall = tAtQResistance;
+            tDownsideWall = tAtQSupport;
+            tUpsideLimit = tAtQUpper;
+            tDownsideLimit = tAtQLower;
+          } else {
+            tUpsideWall = tAtQSupport; // QQQ 저점 -> 인버스 고점
+            tDownsideWall = tAtQResistance; // QQQ 고점 -> 인버스 저점
+            tUpsideLimit = tAtQLower; // QQQ 하단 -> 인버스 상단
+            tDownsideLimit = tAtQUpper; // QQQ 상단 -> 인버스 하단
+          }
+
+          // ✅ 3. 현실적인 지지/저항 (보수적 접근: Wall과 1-SD 중 현재가에 더 가까운 것 선택)
+          // 너무 공격적인 목표가를 방지하기 위해 1-SD 범위를 "최대 한계선"으로 작동하게 함
+          const realisticSupport = Math.max(tDownsideWall, tDownsideLimit);
+          const realisticResistance = Math.min(tUpsideWall, tUpsideLimit);
 
           let profitPotential: number;
           let priceProbability = { ...q.priceProbability };
 
-          if (beta >= 0) {
-            // 정방향: (현실적 저항선 - 현실적 지지선) / 현실적 지지선
-            profitPotential =
-              ((realisticResistance - realisticSupport) / realisticSupport) *
-              100;
-          } else {
-            // 역방향: (높은 가격 - 낮은 가격) / 낮은 가격
-            // 인버스는 낮은 가격(realisticResistance)에 사서 높은 가격(realisticSupport)에 팜
-            profitPotential =
-              ((realisticSupport - realisticResistance) /
-                realisticResistance) *
-              100;
+          // 수익률 계산 (지지선에서 사서 저항선에서 파는 시나리오)
+          profitPotential = ((realisticResistance - realisticSupport) / realisticSupport) * 100;
 
+          if (beta < 0) {
             // 확률 반전 (QQQ 상승 확률이 인버스 하락 확률이 됨)
             priceProbability = {
               up: q.priceProbability.down,
@@ -1347,10 +1349,10 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
 
           return {
             date: q.date,
-            expectedSupport,
-            expectedResistance,
-            expectedUpper,
-            expectedLower,
+            expectedSupport: realisticSupport,
+            expectedResistance: realisticResistance,
+            expectedUpper: tUpsideLimit,
+            expectedLower: tDownsideLimit,
             profitPotential,
             priceProbability,
           };
