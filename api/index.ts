@@ -1040,9 +1040,16 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         }
       }
 
-      // 수익률이 높은 상위 3개 시나리오만 선택
+      // 수익률이 높은 상위 3개 시나리오만 선택 (단기 우선 정렬 추가)
       swingScenarios.push(
-        ...combinations.sort((a, b) => b.profit - a.profit).slice(0, 3)
+        ...combinations
+          .sort((a, b) => {
+            // 확률 70% 이상인 것들을 최우선
+            if (a.probability >= 70 && b.probability < 70) return -1;
+            if (b.probability >= 70 && a.probability < 70) return 1;
+            return b.profit - a.profit;
+          })
+          .slice(0, 3)
       );
     }
     // ✅ 세부 구간별 상승/하락 추세 도출 (가격 레벨 이동 기준 반영)
@@ -1452,7 +1459,19 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
         }
       }
       tickerSwingScenarios = combinations
-        .sort((a, b) => b.profit - a.profit)
+        .sort((a, b) => {
+          // ✅ 1. 기간(Duration)이 짧은 것을 우선 (사용자 요청: 연속일 시나리오 확보)
+          const durationA =
+            new Date(a.exitDate).getTime() - new Date(a.entryDate).getTime();
+          const durationB =
+            new Date(b.exitDate).getTime() - new Date(b.entryDate).getTime();
+
+          if (a.probability >= 70 && b.probability < 70) return -1;
+          if (b.probability >= 70 && a.probability < 70) return 1;
+
+          // 확률이 비슷하면 수익률 높은 순
+          return b.profit - a.profit;
+        })
         .slice(0, 3);
     }
 
