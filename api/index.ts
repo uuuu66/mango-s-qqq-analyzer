@@ -248,12 +248,16 @@ interface ExpirationAnalysis {
     neutral: number;
   };
   options: ProcessedOption[];
+  expectedUpper: number; // 1-SD 상단
+  expectedLower: number; // 1-SD 하단
 }
 
 interface TickerTimeSeriesData {
   date: string;
   expectedSupport: number;
   expectedResistance: number;
+  expectedUpper: number;
+  expectedLower: number;
   profitPotential: number;
   priceProbability: {
     up: number;
@@ -810,6 +814,24 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const pcrFiltered =
             filteredCallOI > 0 ? filteredPutOI / filteredCallOI : 0;
 
+          // 6) 표준편차(1-SD) 기반 기대 변동폭(Expected Move) 산출
+          // Formula: Spot * IV * sqrt(T)
+          const nearAtmOptions = [...calls, ...puts].filter(
+            (opt) => Math.abs(opt.strike - currentPrice) / currentPrice < 0.05
+          );
+          const avgIv =
+            nearAtmOptions.length > 0
+              ? nearAtmOptions.reduce(
+                  (acc, opt) => acc + opt.impliedVolatility,
+                  0
+                ) / nearAtmOptions.length
+              : 0.25; // Fallback IV 25%
+
+          const expectedMove =
+            currentPrice * avgIv * Math.sqrt(Math.max(timeToExpiration, 1 / 365));
+          const expectedUpper = currentPrice + expectedMove;
+          const expectedLower = currentPrice - expectedMove;
+
           // ✅ 진단 로그 추가 (Step 1)
           const zeroGexCalls = calls.filter((c) => c.gex === 0).length;
           const zeroGexPuts = puts.filter((p) => p.gex === 0).length;
@@ -849,13 +871,19 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
                     (Math.abs(callGex) + Math.abs(putGex))) *
                   100
                 : 0,
-            profitPotential: ((callWall - putWall) / putWall) * 100,
+            profitPotential:
+              ((Math.min(callWall, expectedUpper) -
+                Math.max(putWall, expectedLower)) /
+                Math.max(putWall, expectedLower)) *
+              100,
             priceProbability: {
               up: Math.round(upProb),
               down: Math.round(downProb),
               neutral: Math.round(neutralProb),
             },
             options: [...calls, ...puts],
+            expectedUpper,
+            expectedLower,
           };
         } catch (e: unknown) {
           diagnostics.details.push({
@@ -881,7 +909,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     // 단일 만기(0DTE 등)에 의존하지 않고, 전체 만기의 레벨을 시간 가중치(1/sqrt(T))로 통합
     const calculateWeightedLevel = (
       items: ExpirationAnalysis[],
-      key: "putSupport" | "callResistance"
+      key: "putSupport" | "callResistance" | "expectedLower" | "expectedUpper"
     ) => {
       let wSum = 0;
       let vSum = 0;
@@ -905,6 +933,12 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       validResults,
       "callResistance"
     );
+    const aggExpLower = calculateWeightedLevel(validResults, "expectedLower");
+    const aggExpUpper = calculateWeightedLevel(validResults, "expectedUpper");
+
+    // ✅ 현실적인 통합 레벨 (Wall과 1-SD 기대범위의 교집합)
+    const realisticSupport = Math.max(aggSupport, aggExpLower);
+    const realisticResistance = Math.min(aggResistance, aggExpUpper);
 
     // ✅ 시장 전체 통합 감마 플립 산출 (피드백 반영: Aggregation Rule 적용)
     // 모든 유효 만기일의 옵션 데이터를 하나로 합쳐 거대한 GEX Profile 생성
@@ -913,8 +947,8 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     const globalVolTrigger = globalGammaFlip * VOLATILITY_TRIGGER_RATIO;
 
     const recommendations = generateRecommendations(
-      aggSupport,
-      aggResistance,
+      realisticSupport,
+      realisticResistance,
       currentPrice
     );
 
@@ -943,13 +977,19 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const exitDay = getDayName(exit.isoDate);
           const duration = j - i;
 
-          const baseTarget = exit.callResistance * 0.99; // 현실적인 1차 목표가 (저항선의 99%)
-          const extensionTarget = exit.callResistance; // 2차 확장 목표가 (GEX Wall)
+          // ✅ 현실적인 진입/청산가 산출 (Wall과 1-SD 기대값의 보수적 조합)
+          // 지지선(entry): Wall이 너무 낮으면(과매도 예상) 1-SD 기대 하단값을 지지선으로 채택
+          // 저항선(exit): Wall이 너무 높으면(과매수 예상) 1-SD 기대 상단값을 저항선으로 채택
+          const realisticEntry = Math.max(entry.putSupport, entry.expectedLower);
+          const realisticExit = Math.min(exit.callResistance, exit.expectedUpper);
+
+          const baseTarget = realisticExit * 0.995; // 현실적인 1차 목표가
+          const extensionTarget = realisticExit;
 
           const profit =
-            ((baseTarget - entry.putSupport) / entry.putSupport) * 100;
+            ((baseTarget - realisticEntry) / realisticEntry) * 100;
           const extensionProfit =
-            ((extensionTarget - entry.putSupport) / entry.putSupport) * 100;
+            ((extensionTarget - realisticEntry) / realisticEntry) * 100;
 
           // ✅ 시나리오 확률 계산
           // 1) 청산 시점의 상승 확률 반영
@@ -972,13 +1012,17 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             combinations.push({
               entryDate: `${entry.date}(${entryDay})`,
               exitDate: `${exit.date}(${exitDay})`,
-              entryPrice: entry.putSupport,
+              entryPrice: realisticEntry,
               exitPrice: baseTarget,
               extensionPrice: extensionTarget,
               profit,
               extensionProfit,
               probability: scenarioProb,
-              description: `${duration}일 스윙: ${entryDay}요일 진입 → ${exitDay}요일 목표가 도달 시나리오`,
+              description: `${duration}일 스윙: ${entryDay}요일 진입($${realisticEntry.toFixed(
+                2
+              )}) → ${exitDay}요일 목표($${baseTarget.toFixed(
+                2
+              )}) 시나리오 (1-SD 범위 기반)`,
             });
           }
         }
@@ -991,7 +1035,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     }
     // ✅ 세부 구간별 상승/하락 추세 도출 (가격 레벨 이동 기준 반영)
     const getPriceLevel = (r: ExpirationAnalysis) =>
-      (r.putSupport + r.callResistance) / 2;
+      (Math.max(r.putSupport, r.expectedLower) +
+        Math.min(r.callResistance, r.expectedUpper)) /
+      2;
     // 6) 추세 및 확률 예측 로직
     const trendForecast: TrendForecast[] = [];
     const segmentedTrends: SegmentedTrend[] = [];
@@ -1153,6 +1199,8 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         sentiment: result.sentiment,
         profitPotential: result.profitPotential,
         priceProbability: result.priceProbability,
+        expectedUpper: result.expectedUpper,
+        expectedLower: result.expectedLower,
       })),
       callResistance: aggResistance,
       putSupport: aggSupport,
@@ -1246,25 +1294,45 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           date: string;
           putSupport: number;
           callResistance: number;
+          expectedUpper: number;
+          expectedLower: number;
           priceProbability: { up: number; down: number; neutral: number };
         }) => {
           const expectedSupport =
             currentPrice * (1 + beta * (q.putSupport / qPrice - 1));
           const expectedResistance =
             currentPrice * (1 + beta * (q.callResistance / qPrice - 1));
+          const expectedUpper =
+            currentPrice * (1 + beta * (q.expectedUpper / qPrice - 1));
+          const expectedLower =
+            currentPrice * (1 + beta * (q.expectedLower / qPrice - 1));
+
+          // ✅ 현실적인 지지/저항 (Wall과 1-SD 기대범위의 교집합)
+          // 정방향: Support = Max(Wall, 1-SD Lower), Resistance = Min(Wall, 1-SD Upper)
+          // 역방향: Support = Min(Wall, 1-SD Upper), Resistance = Max(Wall, 1-SD Lower) (가격이 뒤집히므로)
+          const realisticSupport =
+            beta >= 0
+              ? Math.max(expectedSupport, expectedLower)
+              : Math.min(expectedSupport, expectedUpper);
+          const realisticResistance =
+            beta >= 0
+              ? Math.min(expectedResistance, expectedUpper)
+              : Math.max(expectedResistance, expectedLower);
 
           let profitPotential: number;
           let priceProbability = { ...q.priceProbability };
 
           if (beta >= 0) {
-            // 정방향: (저항선 - 지지선) / 지지선
+            // 정방향: (현실적 저항선 - 현실적 지지선) / 현실적 지지선
             profitPotential =
-              ((expectedResistance - expectedSupport) / expectedSupport) * 100;
+              ((realisticResistance - realisticSupport) / realisticSupport) *
+              100;
           } else {
-            // 역방향: (지지선(실제로는 더 높은 가격) - 저항선(더 낮은 가격)) / 저항선
-            // 인버스는 QQQ가 오를 때(저항선) 사서 내릴 때(지지선) 팔아야 함
+            // 역방향: (높은 가격 - 낮은 가격) / 낮은 가격
+            // 인버스는 낮은 가격(realisticResistance)에 사서 높은 가격(realisticSupport)에 팜
             profitPotential =
-              ((expectedSupport - expectedResistance) / expectedResistance) *
+              ((realisticSupport - realisticResistance) /
+                realisticResistance) *
               100;
 
             // 확률 반전 (QQQ 상승 확률이 인버스 하락 확률이 됨)
@@ -1279,6 +1347,8 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
             date: q.date,
             expectedSupport,
             expectedResistance,
+            expectedUpper,
+            expectedLower,
             profitPotential,
             priceProbability,
           };

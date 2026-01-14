@@ -589,6 +589,26 @@ const App: React.FC = () => {
                   <Line
                     yAxisId="left"
                     type="monotone"
+                    dataKey="expectedUpper"
+                    stroke="#10b981"
+                    strokeWidth={1}
+                    strokeDasharray="2 2"
+                    dot={false}
+                    name="1-SD 상단 (기대범위)"
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="expectedLower"
+                    stroke="#10b981"
+                    strokeWidth={1}
+                    strokeDasharray="2 2"
+                    dot={false}
+                    name="1-SD 하단 (기대범위)"
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
                     dataKey={() => data?.currentPrice}
                     stroke="#1e293b"
                     strokeWidth={1}
@@ -1039,12 +1059,17 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <span className="font-bold text-blue-600">
-                      Buy @ ${item.putSupport?.toFixed(2)}
+                      Buy @ ${Math.max(item.putSupport, item.expectedLower)?.toFixed(2)}
                     </span>
                     <span className="text-slate-300">→</span>
                     <span className="font-bold text-red-600">
-                      Sell @ ${item.callResistance?.toFixed(2)}
+                      Sell @ ${Math.min(item.callResistance, item.expectedUpper)?.toFixed(2)}
                     </span>
+                  </div>
+                  <div className="text-[9px] text-slate-400 mt-1 font-medium italic">
+                    시장 기대 범위: ${item.expectedLower?.toFixed(2)} ~ ${item.expectedUpper?.toFixed(
+                      2
+                    )} (표준편차 1-SD)
                   </div>
                   {/* QQQ Probability Mini Bars */}
                   <div className="flex gap-1 h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-slate-100 mt-2">
@@ -1090,9 +1115,9 @@ const App: React.FC = () => {
             ))}
           </div>
           <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
-            * 본 시나리오는 GEX 에너지 최대 밀집 구간인 Put Wall(매수)과 Call
-            Wall(매도)을 기반으로 한 이론적 최대 변동폭입니다. 실제 시장 상황에
-            따라 도달하지 못할 수 있습니다.
+            * 본 시나리오는 GEX 에너지 최대 밀집 구간(Wall)과 옵션 내재 변동성(IV)
+            기반의 **표준편차 1-SD 기대 범위**를 복합 분석하여 산출한 현실적
+            변동폭입니다.
           </p>
         </div>
 
@@ -1548,6 +1573,24 @@ const App: React.FC = () => {
                           />
                           <Line
                             type="monotone"
+                            dataKey="expectedUpper"
+                            stroke="#10b981"
+                            strokeWidth={1}
+                            strokeDasharray="2 2"
+                            dot={false}
+                            name="1-SD 상단"
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="expectedLower"
+                            stroke="#10b981"
+                            strokeWidth={1}
+                            strokeDasharray="2 2"
+                            dot={false}
+                            name="1-SD 하단"
+                          />
+                          <Line
+                            type="monotone"
                             dataKey={() => tickerAnalysis.currentPrice}
                             stroke="#1e293b"
                             strokeWidth={1}
@@ -1575,33 +1618,62 @@ const App: React.FC = () => {
                                 <div className="text-[9px] font-bold text-slate-400 mb-1">
                                   {item.date} 만기
                                 </div>
-                                <div className="text-[10px] font-mono flex items-center gap-1.5 mb-2">
-                                  <span
-                                    className={
-                                      tickerAnalysis.beta >= 0
-                                        ? "text-blue-600 font-bold"
-                                        : "text-red-600 font-bold"
-                                    }
-                                  >
-                                    {tickerAnalysis.beta >= 0 ? "Buy" : "Short"}{" "}
-                                    @ $
-                                    {tickerAnalysis.beta >= 0
-                                      ? item.expectedSupport?.toFixed(2)
-                                      : item.expectedResistance?.toFixed(2)}
-                                  </span>
-                                  <span className="text-slate-300">→</span>
-                                  <span
-                                    className={
-                                      tickerAnalysis.beta >= 0
-                                        ? "text-red-600 font-bold"
-                                        : "text-blue-600 font-bold"
-                                    }
-                                  >
-                                    $
-                                    {tickerAnalysis.beta >= 0
-                                      ? item.expectedResistance?.toFixed(2)
-                                      : item.expectedSupport?.toFixed(2)}
-                                  </span>
+                                <div className="text-[10px] font-mono flex flex-col gap-1 mb-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <span
+                                      className={
+                                        tickerAnalysis.beta >= 0
+                                          ? "text-blue-600 font-bold"
+                                          : "text-emerald-600 font-bold"
+                                      }
+                                    >
+                                      {tickerAnalysis.beta >= 0
+                                        ? "Buy"
+                                        : "Entry"}{" "}
+                                      @ $
+                                      {tickerAnalysis.beta >= 0
+                                        ? Math.max(
+                                            item.expectedSupport,
+                                            item.expectedLower
+                                          ).toFixed(2)
+                                        : Math.min(
+                                            item.expectedResistance,
+                                            item.expectedUpper
+                                          ).toFixed(2)}
+                                    </span>
+                                    <span className="text-slate-300">→</span>
+                                    <span
+                                      className={
+                                        tickerAnalysis.beta >= 0
+                                          ? "text-red-600 font-bold"
+                                          : "text-blue-600 font-bold"
+                                      }
+                                    >
+                                      $
+                                      {tickerAnalysis.beta >= 0
+                                        ? Math.min(
+                                            item.expectedResistance,
+                                            item.expectedUpper
+                                          ).toFixed(2)
+                                        : Math.max(
+                                            item.expectedSupport,
+                                            item.expectedLower
+                                          ).toFixed(2)}
+                                    </span>
+                                  </div>
+                                  <div className="text-[8px] text-slate-400 font-medium italic">
+                                    기대 범위: $
+                                    {Math.min(
+                                      item.expectedLower,
+                                      item.expectedUpper
+                                    ).toFixed(2)}{" "}
+                                    ~ $
+                                    {Math.max(
+                                      item.expectedLower,
+                                      item.expectedUpper
+                                    ).toFixed(2)}{" "}
+                                    (1-SD)
+                                  </div>
                                 </div>
                                 {/* Ticker Probability Mini Bars */}
                                 <div className="flex gap-1 h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-slate-100">
@@ -1685,6 +1757,18 @@ const App: React.FC = () => {
                       * 본 공식은 자본자산가격결정모델(CAPM)의 원리를 응용하여,
                       시장(QQQ) 변동에 따른 개별 자산의 민감도를 가격에 투영한
                       결과입니다.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-600 mb-1">
+                      3. 표준편차(1-SD) 기대 범위 산출
+                    </p>
+                    <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
+                      Expected Range = Price * IV * sqrt(T)
+                    </code>
+                    <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
+                      * 옵션 내재 변동성(IV)을 활용하여 통계적으로 주가가 머무를
+                      확률이 높은(약 68%) 범위를 계산합니다.
                     </p>
                   </div>
                 </div>

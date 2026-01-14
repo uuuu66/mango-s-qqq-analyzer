@@ -40,6 +40,8 @@ export interface TimeSeriesData {
     down: number;
     neutral: number;
   };
+  expectedUpper: number;
+  expectedLower: number;
 }
 
 export interface SwingScenario {
@@ -100,12 +102,16 @@ export interface TickerTimeSeriesData {
   date: string;
   expectedSupport: number;
   expectedResistance: number;
+  expectedUpper: number;
+  expectedLower: number;
   profitPotential: number;
   priceProbability: {
     up: number;
     down: number;
     neutral: number;
   };
+  expectedUpper: number;
+  expectedLower: number;
 }
 
 export interface TickerAnalysis {
