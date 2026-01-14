@@ -21,6 +21,7 @@ import {
   Download,
   Search,
   Info,
+  Zap,
 } from "lucide-react";
 import {
   fetchQQQData,
@@ -1041,12 +1042,75 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 mt-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-500" />
-            시장 리스크 및 변동성 트리거
+            <Zap className="w-5 h-5 text-yellow-500" />
+            1일 스캘핑 시나리오 (Daily Scalping)
           </h3>
+          <div className="space-y-4">
+            {data?.timeSeries?.slice(0, 5).map((item, idx) => {
+              const buyPrice = Math.max(item.putSupport, item.expectedLower);
+              const sellPrice = Math.min(item.callResistance, item.expectedUpper);
+              const profit = ((sellPrice - buyPrice) / buyPrice) * 100;
+
+              return (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 group hover:border-yellow-200 transition-colors"
+                >
+                  <div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                      {item.date} 변동성 활용
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-bold text-blue-600">
+                        Buy @ ${buyPrice?.toFixed(2)}
+                      </span>
+                      <span className="text-slate-300">→</span>
+                      <span className="font-bold text-red-600">
+                        Sell @ ${sellPrice?.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex gap-1 h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-slate-100 mt-2">
+                      <div
+                        className="bg-emerald-500"
+                        style={{ width: `${item.priceProbability?.up ?? 0}%` }}
+                      />
+                      <div
+                        className="bg-slate-400"
+                        style={{
+                          width: `${item.priceProbability?.neutral ?? 0}%`,
+                        }}
+                      />
+                      <div
+                        className="bg-red-500"
+                        style={{
+                          width: `${item.priceProbability?.down ?? 0}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] font-bold text-yellow-600 uppercase tracking-widest mb-1">
+                      기대 수익률
+                    </div>
+                    <div className="text-lg font-black text-emerald-600">
+                      {profit <= 0 ? "Box-range" : `+${profit.toFixed(2)}%`}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
+            * 5일간의 데이터를 바탕으로 도출된 1일 단위 단기 매매 시나리오입니다.
+            표준편차(1-SD) 범위 내에서 매물대 하단 매수, 상단 매도 전략을
+            권장합니다.
+          </p>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="space-y-4">
             <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
               <div className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">
@@ -1429,6 +1493,86 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 )}
+
+              <div className="mt-8 pt-6 border-t border-slate-100">
+                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5 text-yellow-500" />{" "}
+                  {tickerAnalysis.symbol} 1일 스캘핑 시나리오
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {tickerAnalysis.timeSeries?.slice(0, 5).map((item, idx) => {
+                    const buyPrice =
+                      tickerAnalysis.beta >= 0
+                        ? Math.max(item.expectedSupport, item.expectedLower)
+                        : Math.min(item.expectedResistance, item.expectedUpper);
+                    const sellPrice =
+                      tickerAnalysis.beta >= 0
+                        ? Math.min(item.expectedResistance, item.expectedUpper)
+                        : Math.max(item.expectedSupport, item.expectedLower);
+                    const profit = ((sellPrice - buyPrice) / buyPrice) * 100;
+
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100 group hover:border-yellow-200 transition-colors"
+                      >
+                        <div>
+                          <div className="text-[9px] font-bold text-slate-400 mb-1">
+                            {item.date} 변동성
+                          </div>
+                          <div className="text-[10px] font-mono flex items-center gap-1.5 mb-2">
+                            <span
+                              className={
+                                tickerAnalysis.beta >= 0
+                                  ? "text-blue-600 font-bold"
+                                  : "text-emerald-600 font-bold"
+                              }
+                            >
+                              {tickerAnalysis.beta >= 0 ? "Buy" : "Entry"} @ $
+                              {buyPrice.toFixed(2)}
+                            </span>
+                            <span className="text-slate-300">→</span>
+                            <span
+                              className={
+                                tickerAnalysis.beta >= 0
+                                  ? "text-red-600 font-bold"
+                                  : "text-blue-600 font-bold"
+                              }
+                            >
+                              ${sellPrice.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex gap-1 h-1 w-full max-w-[80px] rounded-full overflow-hidden bg-slate-100">
+                            <div
+                              className="bg-emerald-500"
+                              style={{ width: `${item.priceProbability.up}%` }}
+                            />
+                            <div
+                              className="bg-slate-400"
+                              style={{
+                                width: `${item.priceProbability.neutral}%`,
+                              }}
+                            />
+                            <div
+                              className="bg-red-500"
+                              style={{
+                                width: `${item.priceProbability.down}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[11px] font-black text-emerald-600">
+                            {profit <= 0
+                              ? "Range-bound"
+                              : `+${profit.toFixed(2)}%`}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
               <div className="mt-8 pt-6 border-t border-slate-100">
                 <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
