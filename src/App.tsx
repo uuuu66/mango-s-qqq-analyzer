@@ -1050,9 +1050,12 @@ const App: React.FC = () => {
           </h3>
           <div className="space-y-4">
             {data?.timeSeries?.slice(0, 5).map((item, idx) => {
-              const buyPrice = Math.max(item.putSupport, item.expectedLower);
-              const sellPrice = Math.min(item.callResistance, item.expectedUpper);
-              const profit = ((sellPrice - buyPrice) / buyPrice) * 100;
+              const rawP1 = Math.max(item.putSupport, item.expectedLower);
+              const rawP2 = Math.min(item.callResistance, item.expectedUpper);
+              const buyPrice = Math.min(rawP1, rawP2);
+              const sellPrice = Math.max(rawP1, rawP2);
+              const targetPrice = sellPrice * 0.997; 
+              const profit = ((targetPrice - buyPrice) / buyPrice) * 100;
 
               return (
                 <div
@@ -1061,7 +1064,7 @@ const App: React.FC = () => {
                 >
                   <div>
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                      {item.date} 변동성 활용
+                      {item.date} 단기 타점
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <span className="font-bold text-blue-600">
@@ -1069,7 +1072,7 @@ const App: React.FC = () => {
                       </span>
                       <span className="text-slate-300">→</span>
                       <span className="font-bold text-red-600">
-                        Sell @ ${sellPrice?.toFixed(2)}
+                        Sell @ ${targetPrice?.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex gap-1 h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-slate-100 mt-2">
@@ -1501,15 +1504,16 @@ const App: React.FC = () => {
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {tickerAnalysis.timeSeries?.slice(0, 5).map((item, idx) => {
-                    const buyPrice =
-                      tickerAnalysis.beta >= 0
-                        ? Math.max(item.expectedSupport, item.expectedLower)
-                        : Math.min(item.expectedResistance, item.expectedUpper);
-                    const sellPrice =
-                      tickerAnalysis.beta >= 0
-                        ? Math.min(item.expectedResistance, item.expectedUpper)
-                        : Math.max(item.expectedSupport, item.expectedLower);
-                    const profit = ((sellPrice - buyPrice) / buyPrice) * 100;
+                    // ✅ 항상 낮은 가격을 buyPrice, 높은 가격을 sellPrice로 설정 (Long 관점 스캘핑)
+                    const rawP1 = Math.max(item.expectedSupport, item.expectedLower);
+                    const rawP2 = Math.min(item.expectedResistance, item.expectedUpper);
+                    
+                    const buyPrice = Math.min(rawP1, rawP2);
+                    const sellPrice = Math.max(rawP1, rawP2);
+                    
+                    // 스캘핑이므로 목표가를 저항선보다 약간 더 보수적으로(99.7%) 잡음
+                    const targetPrice = sellPrice * 0.997; 
+                    const profit = ((targetPrice - buyPrice) / buyPrice) * 100;
 
                     return (
                       <div
@@ -1518,28 +1522,15 @@ const App: React.FC = () => {
                       >
                         <div>
                           <div className="text-[9px] font-bold text-slate-400 mb-1">
-                            {item.date} 변동성
+                            {item.date} 단기 타점
                           </div>
                           <div className="text-[10px] font-mono flex items-center gap-1.5 mb-2">
-                            <span
-                              className={
-                                tickerAnalysis.beta >= 0
-                                  ? "text-blue-600 font-bold"
-                                  : "text-emerald-600 font-bold"
-                              }
-                            >
-                              {tickerAnalysis.beta >= 0 ? "Buy" : "Entry"} @ $
-                              {buyPrice.toFixed(2)}
+                            <span className="text-blue-600 font-bold">
+                              Buy @ ${buyPrice.toFixed(2)}
                             </span>
                             <span className="text-slate-300">→</span>
-                            <span
-                              className={
-                                tickerAnalysis.beta >= 0
-                                  ? "text-red-600 font-bold"
-                                  : "text-blue-600 font-bold"
-                              }
-                            >
-                              ${sellPrice.toFixed(2)}
+                            <span className="text-red-600 font-bold">
+                              ${targetPrice.toFixed(2)}
                             </span>
                           </div>
                           <div className="flex gap-1 h-1 w-full max-w-[80px] rounded-full overflow-hidden bg-slate-100">
