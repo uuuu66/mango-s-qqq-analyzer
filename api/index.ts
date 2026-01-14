@@ -1045,8 +1045,10 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     const segmentedTrends: SegmentedTrend[] = [];
 
     if (validResults.length >= 2) {
+      const forecastLimit = 5;
       const first = validResults[0];
-      const last = validResults[validResults.length - 1];
+      const last =
+        validResults[Math.min(validResults.length, forecastLimit) - 1];
 
       const sentimentDiff = last.sentiment - first.sentiment;
 
@@ -1089,7 +1091,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           price: currentPrice,
           sentiment: validResults[0].sentiment,
         }, // 기준점
-        ...validResults.map((r) => ({
+        ...validResults.slice(0, 5).map((r) => ({
           date: r.date,
           price: getPriceLevel(r),
           sentiment: r.sentiment,
