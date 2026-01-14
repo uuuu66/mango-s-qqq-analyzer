@@ -1528,48 +1528,55 @@ const App: React.FC = () => {
                         <AlertTriangle className="w-3.5 h-3.5" /> 분석 계산 공식
                         (Methodology)
                       </h4>
-                <div className="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                  <div>
-                    <p className="text-[11px] font-bold text-slate-600 mb-1">
-                      1. 실시간 베타계수 ($\beta$) 산출
-                    </p>
-                    <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
-                      Beta = Cov(r_stock, r_qqq) / Var(r_qqq)
-                      <br />
-                      *r: 최근{" "}
-                      {betaPeriod >= 12
-                        ? `${betaPeriod / 12}년`
-                        : `${betaPeriod}개월`}
-                      간의 일일 로그 수익률 (Daily Returns)
-                    </code>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-slate-600 mb-1">
-                      2. 기대 가격 (Target Price) 예측
-                    </p>
-                    <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
-                      Target = Current * (1 + Beta * (QQQ_Target / QQQ_Current -
-                      1))
-                    </code>
-                    <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
-                      * 본 공식은 자본자산가격결정모델(CAPM)의 원리를 응용하여,
-                      시장(QQQ) 변동에 따른 개별 자산의 민감도를 가격에 투영한
-                      결과입니다.
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-slate-600 mb-1">
-                      3. 표준편차(1-SD) 기대 범위 산출
-                    </p>
-                    <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
-                      Expected Range = Price * IV * sqrt(T)
-                    </code>
-                    <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
-                      * 옵션 내재 변동성(IV)을 활용하여 통계적으로 주가가 머무를
-                      확률이 높은(약 68%) 범위를 계산합니다.
-                    </p>
-                  </div>
-                </div>
+                      <div className="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-600 mb-1">
+                            1. 실시간 베타계수 ($\beta$) 산출
+                          </p>
+                          <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
+                            Beta = Cov(r_stock, r_qqq) / Var(r_qqq)
+                            <br />
+                            *r: 최근{" "}
+                            {betaPeriod >= 12
+                              ? `${betaPeriod / 12}년`
+                              : `${betaPeriod}개월`}
+                            간의 일일 로그 수익률 (Daily Returns)
+                          </code>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-600 mb-1">
+                            2. 기대 가격 (Target Price) 예측
+                          </p>
+                          <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
+                            Target = Current * (1 + Beta * (QQQ_Target / QQQ_Current -
+                            1))
+                          </code>
+                          <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
+                            * 본 공식은 자본자산가격결정모델(CAPM)의 원리를 응용하여,
+                            시장(QQQ) 변동에 따른 개별 자산의 민감도를 가격에 투영한
+                            결과입니다.
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-600 mb-1">
+                            3. 표준편차(1-SD) 기대 범위 산출
+                          </p>
+                          <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
+                            Expected Range = Price * IV * sqrt(T)
+                          </code>
+                          <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
+                            * 옵션 내재 변동성(IV)을 활용하여 통계적으로 주가가 머무를
+                            확률이 높은(약 68%) 범위를 계산합니다.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-400 text-center py-8">
+                    차트 데이터를 불러올 수 없습니다.
+                  </p>
+                )}
               </div>
             </div>
           )}
