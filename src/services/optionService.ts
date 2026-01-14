@@ -100,11 +100,14 @@ export interface AnalysisResult {
 
 export interface TickerTimeSeriesData {
   date: string;
+  isoDate: string;
   expectedSupport: number;
   expectedResistance: number;
   expectedUpper: number;
   expectedLower: number;
   profitPotential: number;
+  sentiment: number;
+  totalGex: number;
   priceProbability: {
     up: number;
     down: number;

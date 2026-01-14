@@ -254,11 +254,14 @@ interface ExpirationAnalysis {
 
 interface TickerTimeSeriesData {
   date: string;
+  isoDate: string;
   expectedSupport: number;
   expectedResistance: number;
   expectedUpper: number;
   expectedLower: number;
   profitPotential: number;
+  sentiment: number;
+  totalGex: number;
   priceProbability: {
     up: number;
     down: number;
@@ -1303,18 +1306,24 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
       tickerTimeSeries = qqqTimeSeries.map(
         (q: {
           date: string;
+          isoDate: string;
           putSupport: number;
           callResistance: number;
           expectedUpper: number;
           expectedLower: number;
+          sentiment: number;
+          totalGex: number;
           priceProbability: { up: number; down: number; neutral: number };
         }) => {
           // ✅ 1. QQQ 주요 지점에서의 티커 예상 가격 계산 (베타 적용)
-          const tAtQSupport = currentPrice * (1 + beta * (q.putSupport / qPrice - 1));
+          const tAtQSupport =
+            currentPrice * (1 + beta * (q.putSupport / qPrice - 1));
           const tAtQResistance =
             currentPrice * (1 + beta * (q.callResistance / qPrice - 1));
-          const tAtQUpper = currentPrice * (1 + beta * (q.expectedUpper / qPrice - 1));
-          const tAtQLower = currentPrice * (1 + beta * (q.expectedLower / qPrice - 1));
+          const tAtQUpper =
+            currentPrice * (1 + beta * (q.expectedUpper / qPrice - 1));
+          const tAtQLower =
+            currentPrice * (1 + beta * (q.expectedLower / qPrice - 1));
 
           // ✅ 2. 티커 기준의 상단(Upside)과 하단(Downside) 정의
           // 정방향: Upside(저항선), Downside(지지선)
@@ -1337,7 +1346,6 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           }
 
           // ✅ 3. 현실적인 지지/저항 (보수적 접근: Wall과 1-SD 중 현재가에 더 가까운 것 선택)
-          // 너무 공격적인 목표가를 방지하기 위해 1-SD 범위를 "최대 한계선"으로 작동하게 함
           const realisticSupport = Math.max(tDownsideWall, tDownsideLimit);
           const realisticResistance = Math.min(tUpsideWall, tUpsideLimit);
 
@@ -1345,7 +1353,8 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           let priceProbability = { ...q.priceProbability };
 
           // 수익률 계산 (지지선에서 사서 저항선에서 파는 시나리오)
-          profitPotential = ((realisticResistance - realisticSupport) / realisticSupport) * 100;
+          profitPotential =
+            ((realisticResistance - realisticSupport) / realisticSupport) * 100;
 
           if (beta < 0) {
             // 확률 반전 (QQQ 상승 확률이 인버스 하락 확률이 됨)
@@ -1358,62 +1367,93 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
 
           return {
             date: q.date,
+            isoDate: q.isoDate,
             expectedSupport: realisticSupport,
             expectedResistance: realisticResistance,
             expectedUpper: tUpsideLimit,
             expectedLower: tDownsideLimit,
             profitPotential,
+            sentiment: q.sentiment,
+            totalGex: q.totalGex,
             priceProbability,
           };
         }
       );
     }
 
-    // 스윙 시나리오 계산 (있는 경우)
+    // ✅ 티커 스윙 시나리오 독자 계산 (QQQ 시나리오 반전이 아닌 티커 데이터 기준 직접 도출)
     let tickerSwingScenarios: SwingScenario[] | undefined = undefined;
-    if (Array.isArray(qqqSwingScenarios)) {
-      tickerSwingScenarios = qqqSwingScenarios.map((s: SwingScenario) => {
-        let entryPrice: number;
-        let exitPrice: number;
-        let extensionPrice: number;
+    if (Array.isArray(tickerTimeSeries) && tickerTimeSeries.length >= 2) {
+      const combinations: SwingScenario[] = [];
+      const scenarioLimit = 5;
+      const targetResults = tickerTimeSeries.slice(0, scenarioLimit);
 
-        if (beta >= 0) {
-          // 정방향 (QLD, TQQQ 등): QQQ 지지선 진입 -> 저항선 익절
-          entryPrice = currentPrice * (1 + beta * (s.entryPrice / qPrice - 1));
-          exitPrice = currentPrice * (1 + beta * (s.exitPrice / qPrice - 1));
-          extensionPrice =
-            currentPrice * (1 + beta * (s.extensionPrice / qPrice - 1));
-        } else {
-          // 역방향 (SQQQ 등): QQQ 저항선 진입 -> 지지선 익절
-          // QQQ가 고점(s.exitPrice)일 때 인버스 진입, 저점(s.entryPrice)일 때 익절
-          entryPrice = currentPrice * (1 + beta * (s.exitPrice / qPrice - 1));
-          exitPrice = currentPrice * (1 + beta * (s.entryPrice / qPrice - 1));
-          // 인버스의 확장 익절은 QQQ가 지지선을 뚫고 더 내려가는 시나리오
-          extensionPrice =
-            currentPrice * (1 + beta * ((s.entryPrice * 0.98) / qPrice - 1));
+      // 요일 계산 헬퍼
+      const getDayName = (isoDate: string) => {
+        const days = ["일", "월", "화", "수", "목", "금", "토"];
+        try {
+          const date = new Date(isoDate);
+          return days[date.getDay()];
+        } catch {
+          return "";
         }
+      };
 
-        const profit = ((exitPrice - entryPrice) / entryPrice) * 100;
-        const extensionProfit =
-          ((extensionPrice - entryPrice) / entryPrice) * 100;
+      for (let i = 0; i < targetResults.length; i++) {
+        for (let j = i + 1; j < targetResults.length; j++) {
+          const entry = targetResults[i];
+          const exit = targetResults[j];
 
-        return {
-          ...s,
-          entryPrice,
-          exitPrice,
-          extensionPrice,
-          profit,
-          extensionProfit,
-          description:
-            beta >= 0
-              ? s.description.replace("QQQ", String(symbol).toUpperCase())
-              : `${s.entryDate} ~ ${
-                  s.exitDate
-                } 하락 베팅: QQQ 저항선($${s.exitPrice.toFixed(
-                  2
-                )}) 부근 진입 시나리오`,
-        };
-      });
+          const entryDay = getDayName(entry.isoDate);
+          const exitDay = getDayName(exit.isoDate);
+          const duration = j - i;
+
+          const entryPrice = entry.expectedSupport;
+          const exitPrice = exit.expectedResistance;
+          const targetPrice = exitPrice * 0.995; // 보수적 목표가
+
+          const profit = ((targetPrice - entryPrice) / entryPrice) * 100;
+
+          if (profit > 0.1) {
+            // 해당 티커 입장에서 수익이 나는 구간만 추출
+            const sentimentImprovement = exit.sentiment - entry.sentiment;
+            const gexTrend = exit.totalGex > entry.totalGex ? 5 : -5;
+
+            // 방향성 보정: 인버스의 경우 QQQ 심리가 하락할 때 SQQQ는 상승
+            const effectiveSentimentImprovement =
+              beta < 0 ? -sentimentImprovement : sentimentImprovement;
+
+            let scenarioProb =
+              55 +
+              effectiveSentimentImprovement * 0.4 +
+              gexTrend +
+              (exit.priceProbability.up - exit.priceProbability.down) * 0.2;
+
+            scenarioProb -= duration * 2;
+            scenarioProb = Math.round(Math.max(35, Math.min(80, scenarioProb)));
+
+            combinations.push({
+              entryDate: `${entry.date}(${entryDay})`,
+              exitDate: `${exit.date}(${exitDay})`,
+              entryPrice,
+              exitPrice: targetPrice,
+              extensionPrice: exitPrice,
+              profit,
+              extensionProfit: ((exitPrice - entryPrice) / entryPrice) * 100,
+              probability: scenarioProb,
+              description:
+                beta < 0
+                  ? `${duration}일 하락 베팅 스윙: QQQ 하향 추세를 활용한 ${String(
+                      symbol
+                    ).toUpperCase()} 진입 시나리오`
+                  : `${duration}일 스윙: ${entryDay}요일 진입 → ${exitDay}요일 목표 도달 시나리오`,
+            });
+          }
+        }
+      }
+      tickerSwingScenarios = combinations
+        .sort((a, b) => b.profit - a.profit)
+        .slice(0, 3);
     }
 
     // ✅ 세부 구간별 상승/하락 추세 계산 (인버스 완벽 대응)
