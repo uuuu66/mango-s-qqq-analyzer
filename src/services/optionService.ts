@@ -110,8 +110,6 @@ export interface TickerTimeSeriesData {
     down: number;
     neutral: number;
   };
-  expectedUpper: number;
-  expectedLower: number;
 }
 
 export interface TickerAnalysis {
