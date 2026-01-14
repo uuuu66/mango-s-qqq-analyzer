@@ -972,12 +972,15 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         }
       };
 
-      // 모든 가능한 [진입일 - 청산일] 조합 탐색 (최대 4일 간격까지)
+      // 모든 가능한 [진입일 - 청산일] 조합 탐색 (최대 4일 간격까지, 5일 이내 데이터로 제한)
       const combinations: SwingScenario[] = [];
-      for (let i = 0; i < validResults.length; i++) {
-        for (let j = i + 1; j < Math.min(i + 4, validResults.length); j++) {
-          const entry = validResults[i];
-          const exit = validResults[j];
+      const scenarioLimit = 5;
+      const targetResults = validResults.slice(0, scenarioLimit);
+
+      for (let i = 0; i < targetResults.length; i++) {
+        for (let j = i + 1; j < targetResults.length; j++) {
+          const entry = targetResults[i];
+          const exit = targetResults[j];
 
           const entryDay = getDayName(entry.isoDate);
           const exitDay = getDayName(exit.isoDate);
