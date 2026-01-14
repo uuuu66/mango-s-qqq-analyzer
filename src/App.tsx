@@ -1108,7 +1108,7 @@ const App: React.FC = () => {
           </div>
           <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
             * 5일간의 데이터를 바탕으로 도출된 1일 단위 단기 매매 시나리오입니다.
-            표준편차(1-SD) 범위 내에서 매물대 하단 매수, 상단 매도 전략을
+            표준편차(0.25-SD) 범위 내에서 매물대 하단 매수, 상단 매도 전략을
             권장합니다.
           </p>
         </div>
@@ -1634,7 +1634,7 @@ const App: React.FC = () => {
                             strokeWidth={1}
                             strokeDasharray="2 2"
                             dot={false}
-                            name="1-SD 상단"
+                            name="0.25-SD 상단"
                           />
                           <Line
                             type="monotone"
@@ -1643,7 +1643,7 @@ const App: React.FC = () => {
                             strokeWidth={1}
                             strokeDasharray="2 2"
                             dot={false}
-                            name="1-SD 하단"
+                            name="0.25-SD 하단"
                           />
                           <Line
                             type="monotone"
@@ -1692,18 +1692,18 @@ const App: React.FC = () => {
                             결과입니다.
                           </p>
                         </div>
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-600 mb-1">
-                            3. 표준편차(1-SD) 기대 범위 산출
-                          </p>
-                          <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
-                            Expected Range = Price * IV * sqrt(T)
-                          </code>
-                          <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
-                            * 옵션 내재 변동성(IV)을 활용하여 통계적으로 주가가 머무를
-                            확률이 높은(약 68%) 범위를 계산합니다.
-                          </p>
-                        </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-600 mb-1">
+                      3. 초보수적 기대 범위 (0.25-SD) 산출
+                    </p>
+                    <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
+                      Expected Range = Price * IV * sqrt(T) * 0.25
+                    </code>
+                    <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
+                      * 도달 확률을 약 80% 수준으로 극대화하기 위해 표준편차 범위를
+                      매우 타이트하게(0.25배) 설정한 핵심 매매 구간입니다.
+                    </p>
+                  </div>
                       </div>
                     </div>
                   </>

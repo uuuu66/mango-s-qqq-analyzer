@@ -816,8 +816,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const pcrFiltered =
             filteredCallOI > 0 ? filteredPutOI / filteredCallOI : 0;
 
-          // 6) 표준편차(1-SD) 기반 기대 변동폭(Expected Move) 산출
-          // Formula: Spot * IV * sqrt(T)
+          // 6) 표준편차 기반 기대 변동폭(Expected Move) 산출 - 초보수적 0.25-SD 적용 (80% 도달 확률 타겟)
+          // Formula: Spot * IV * sqrt(T) * SD_Multiplier
+          const SCALP_SD_MULTIPLIER = 0.25; // 기존 1.0에서 0.25로 하향 (더욱 타이트한 구간)
           const nearAtmOptions = [...calls, ...puts].filter(
             (opt) => Math.abs(opt.strike - currentPrice) / currentPrice < 0.05
           );
@@ -830,7 +831,10 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
               : 0.25; // Fallback IV 25%
 
           const expectedMove =
-            currentPrice * avgIv * Math.sqrt(Math.max(timeToExpiration, 1 / 365));
+            currentPrice *
+            avgIv *
+            Math.sqrt(Math.max(timeToExpiration, 1 / 365)) *
+            SCALP_SD_MULTIPLIER;
           const expectedUpper = currentPrice + expectedMove;
           const expectedLower = currentPrice - expectedMove;
 
