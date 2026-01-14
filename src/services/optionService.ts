@@ -35,6 +35,7 @@ export interface TimeSeriesData {
   pcrFiltered: number;
   sentiment: number;
   profitPotential: number;
+  expectedPrice: number;
   priceProbability: {
     up: number;
     down: number;
@@ -108,6 +109,7 @@ export interface TickerTimeSeriesData {
   profitPotential: number;
   sentiment: number;
   totalGex: number;
+  expectedPrice?: number;
   priceProbability: {
     up: number;
     down: number;
@@ -123,6 +125,7 @@ export interface TickerAnalysis {
   expectedResistance: number;
   expectedMin: number;
   expectedMax: number;
+  expectedPrice?: number;
   changePercent: number;
   timeSeries?: TickerTimeSeriesData[];
   swingScenarios?: SwingScenario[];

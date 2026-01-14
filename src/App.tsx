@@ -181,9 +181,9 @@ const App: React.FC = () => {
     text += `\n`;
 
     text += `[ Market Sentiment & Trend ]\n`;
-    text += `Date\tPCR(All)\tPCR(Filtered)\tSentiment Score\tMax Profit Range\tUp/Down/Neutral Prob\n`;
+    text += `Date\tExpected\tPCR(All)\tPCR(Filtered)\tSentiment Score\tMax Profit Range\tUp/Down/Neutral Prob\n`;
     data.timeSeries.forEach((item) => {
-      text += `${item.date}\t${item.pcrAll.toFixed(
+      text += `${item.date}\t$${item.expectedPrice?.toFixed(2)}\t${item.pcrAll.toFixed(
         2
       )}\t${item.pcrFiltered?.toFixed(2)}\t${item.sentiment.toFixed(
         1
@@ -363,12 +363,27 @@ const App: React.FC = () => {
                     </span>
                     <span className="text-[11px] font-bold text-slate-600 ml-1">
                       {currentStatus.status === "Strong Buy"
-                        ? "분할 매수 권장"
+                        ? "적극 분할 매수 권장"
                         : currentStatus.status === "Buy"
-                        ? "매수 or 관망 권장"
+                        ? "분할 매수 유효 구간"
                         : currentStatus.status === "Neutral"
-                        ? "관망 및 보유 추천"
-                        : "분할 매도/리스크 관리 권장"}
+                        ? "보유 및 추세 관망"
+                        : currentStatus.status === "Sell"
+                        ? "수익 실현 및 매도 고려"
+                        : "위험 관리 및 매도 권장"}
+                    </span>
+                  </div>
+                </div>
+              )}
+              {data?.timeSeries?.[0] && (
+                <div className="flex items-center gap-2">
+                  <span className="hidden sm:inline text-slate-300">|</span>
+                  <div className="flex items-center gap-2 bg-blue-50/50 px-3 py-1 rounded-full border border-blue-100">
+                    <span className="text-[10px] font-bold text-blue-500 uppercase tracking-tight">
+                      예상 종가:
+                    </span>
+                    <span className="text-[11px] font-black text-blue-700">
+                      ${data.timeSeries[0].expectedPrice.toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -483,6 +498,10 @@ const App: React.FC = () => {
                   <span className="w-4 h-0 border-t-2 border-dashed border-blue-500"></span>
                   파란 점선: 이번엔 여기 안 뚫리겠지? (바닥)
                 </p>
+                <p className="flex items-center gap-2 text-xs text-indigo-600 font-bold">
+                  <span className="w-4 h-0 border-t-2 border-indigo-500"></span>
+                  보라 실선: 옵션 기반 예상 종가 (Target)
+                </p>
                 <p className="flex items-center gap-2 text-xs text-slate-500 font-bold">
                   <span className="w-4 h-3 bg-blue-500/10 border border-blue-200 rounded-sm"></span>
                   파란 구름: 시장 방어력 (GEX 에너지 강도)
@@ -575,6 +594,15 @@ const App: React.FC = () => {
                     strokeWidth={2}
                     dot={{ r: 4, fill: "#3b82f6" }}
                     name="풋 지지선"
+                  />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="expectedPrice"
+                    stroke="#6366f1"
+                    strokeWidth={2.5}
+                    dot={{ r: 5, fill: "#6366f1" }}
+                    name="예상 종가 (Target)"
                   />
                   <Line
                     yAxisId="left"
@@ -1270,6 +1298,29 @@ const App: React.FC = () => {
                 </div>
               </div>
 
+              {tickerAnalysis.expectedPrice && (
+                <div className="mb-8 p-6 bg-blue-600 rounded-3xl text-white shadow-lg shadow-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold text-blue-100 uppercase tracking-widest mb-1">
+                        오늘의 예상 종가 (Target)
+                      </div>
+                      <div className="text-4xl font-mono font-black">
+                        ${tickerAnalysis.expectedPrice.toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-blue-100">
+                        현재가 대비
+                      </div>
+                      <div className="text-xl font-black">
+                        {((tickerAnalysis.expectedPrice / tickerAnalysis.currentPrice - 1) * 100).toFixed(2)}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* 하방 지지선 그룹 */}
                 <div className="space-y-4">
@@ -1558,6 +1609,11 @@ const App: React.FC = () => {
                               ? "Range-bound"
                               : `+${profit.toFixed(2)}%`}
                           </div>
+                          {item.expectedPrice && (
+                            <div className="text-[10px] font-mono font-black text-indigo-500 mt-1">
+                              Target ${item.expectedPrice.toFixed(2)}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1608,6 +1664,14 @@ const App: React.FC = () => {
                               boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
                               fontSize: "11px",
                             }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="expectedPrice"
+                            stroke="#6366f1"
+                            strokeWidth={2}
+                            dot={{ r: 4, fill: "#6366f1" }}
+                            name="예상 종가 (Target)"
                           />
                           <Line
                             type="stepAfter"
@@ -1687,9 +1751,9 @@ const App: React.FC = () => {
                             1))
                           </code>
                           <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
-                            * 본 공식은 자본자산가격결정모델(CAPM)의 원리를 응용하여,
-                            시장(QQQ) 변동에 따른 개별 자산의 민감도를 가격에 투영한
-                            결과입니다.
+                            * 예상 종가는 옵션 에너지(GEX)와 표준편차(0.4-SD) 기대 범위를
+                            가중 평균하여 산출한 수치로, 통계적으로 가장 확률이 높은
+                            회귀 지점을 의미합니다.
                           </p>
                         </div>
                   <div>

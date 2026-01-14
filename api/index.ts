@@ -242,6 +242,7 @@ interface ExpirationAnalysis {
   pcrFiltered: number; // 필터링(±15%) 기준
   sentiment: number;
   profitPotential: number; // 기대 수익률 (%)
+  expectedPrice: number; // 예상 종가
   priceProbability: {
     up: number;
     down: number;
@@ -262,6 +263,7 @@ interface TickerTimeSeriesData {
   profitPotential: number;
   sentiment: number;
   totalGex: number;
+  expectedPrice: number;
   priceProbability: {
     up: number;
     down: number;
@@ -277,6 +279,7 @@ interface TickerAnalysis {
   expectedResistance: number;
   expectedMin: number;
   expectedMax: number;
+  expectedPrice?: number;
   changePercent: number;
   timeSeries?: TickerTimeSeriesData[];
   swingScenarios?: SwingScenario[];
@@ -328,9 +331,13 @@ const generateRecommendations = (
   }
 
   const mid = (low + high) / 2;
+  const range = high - low;
 
-  // Neutral과 Sell의 경계선을 정할 때 비율 기반 안전장치
-  const neutralEnd = mid + (high - mid) * 0.6;
+  // ✅ Neutral 구간을 mid(현재가 부근) 기준 대칭으로 설정하여 '항상 관망' 현상 해소
+  // 기존: mid ~ mid + 0.6*(high-mid) -> 50% ~ 80% 구간이 Neutral (비대칭)
+  // 변경: mid - 0.1*range ~ mid + 0.1*range -> 40% ~ 60% 구간이 Neutral (대칭)
+  const neutralStart = mid - range * 0.1;
+  const neutralEnd = mid + range * 0.1;
 
   // 리서치 및 사용자 제언 반영: 지지선이 뚫린 후 일정 수준(예: 3%) 이상 하락하면 'Extreme Risk'로 판단
   const panicLevel = low * 0.97;
@@ -352,30 +359,30 @@ const generateRecommendations = (
     },
     {
       status: "Buy",
-      description: "지지선 ~ 중간값: 안정적 매수 구간",
+      description: "지지선 ~ 중립 하단: 저점 분할 매수 구간",
       min: low,
-      max: mid,
+      max: neutralStart,
       color: "#86efac",
     },
     {
       status: "Neutral",
       description: "중간 영역: 추세 관망 및 보유 구간",
-      min: mid,
+      min: neutralStart,
       max: neutralEnd,
       color: "#94a3b8",
     },
     {
       status: "Sell",
-      description: "저항선 근접: 분할 매도 수익 실현",
+      description: "중립 상단 ~ 저항선: 분할 매도 수익 실현 구간",
       min: neutralEnd,
       max: high,
       color: "#fca5a5",
     },
     {
       status: "Strong Sell",
-      description: "저항선(Resistance) 이상: 강력한 매도 주의 구간",
+      description: "저항선(Resistance) 이상: 과열 및 강력한 매도 주의",
       min: high,
-      max: high + 10, // 리서치 제언: 너무 넓은 범위를 구체적으로 제한 ($630-640 수준)
+      max: high + 20, // 범위를 조금 더 확보
       color: "#ef4444",
     },
   ];
@@ -757,6 +764,12 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const putGex = puts.reduce((acc, opt) => acc + (opt.gex || 0), 0);
           const totalGex = callGex + putGex;
 
+          // 심리 지수(Sentiment) 계산
+          const sentiment =
+            Math.abs(callGex) + Math.abs(putGex) > 0
+              ? ((callGex + putGex) / (Math.abs(callGex) + Math.abs(putGex))) * 100
+              : 0;
+
           // 4) 진짜 Gamma Flip (Spot-Scan 방식)
           const gammaFlip = findTrueGammaFlip(
             [...calls, ...puts],
@@ -819,9 +832,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const pcrFiltered =
             filteredCallOI > 0 ? filteredPutOI / filteredCallOI : 0;
 
-          // 6) 표준편차 기반 기대 변동폭(Expected Move) 산출 - 초보수적 0.25-SD 적용 (80% 도달 확률 타겟)
+          // 6) 표준편차 기반 기대 변동폭(Expected Move) 산출 - 초보수적 0.4-SD 적용 (약 70% 도달 확률 타겟)
           // Formula: Spot * IV * sqrt(T) * SD_Multiplier
-          const SCALP_SD_MULTIPLIER = 0.25; // 기존 1.0에서 0.25로 하향 (더욱 타이트한 구간)
+          const SCALP_SD_MULTIPLIER = 0.4; // 기존 0.25에서 0.4로 상향 (조금 더 넓은 구간 확보)
           const nearAtmOptions = [...calls, ...puts].filter(
             (opt) => Math.abs(opt.strike - currentPrice) / currentPrice < 0.05
           );
@@ -862,6 +875,17 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             putsProcessed: puts.length,
           });
 
+          // 7) 심리 지수(Sentiment)를 반영한 예상 종가 산출
+          // 단순히 중간값이 아니라, 에너지가 쏠린 방향으로 편향(Bias) 부여
+          const realisticSupport = Math.max(putWall, expectedLower);
+          const realisticResistance = Math.min(callWall, expectedUpper);
+          const rangeMid = (realisticSupport + realisticResistance) / 2;
+          const rangeHalf = (realisticResistance - realisticSupport) / 2;
+
+          // sentiment가 -100 ~ 100이므로, 이를 -1 ~ 1로 변환하여 범위의 30% 내에서 가격 편향 부여
+          const sentimentBias = (sentiment / 100) * 0.3;
+          const expectedPrice = rangeMid + rangeHalf * sentimentBias;
+
           return {
             date: expDateStr.split("-").slice(1).join("/"), // "MM/DD" 형식으로 직접 추출
             isoDate: dateObj.toISOString(),
@@ -874,17 +898,13 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             totalGex,
             pcrAll,
             pcrFiltered,
-            sentiment:
-              Math.abs(callGex) + Math.abs(putGex) > 0
-                ? ((callGex + putGex) /
-                    (Math.abs(callGex) + Math.abs(putGex))) *
-                  100
-                : 0,
+            sentiment,
             profitPotential:
               ((Math.min(callWall, expectedUpper) -
                 Math.max(putWall, expectedLower)) /
                 Math.max(putWall, expectedLower)) *
               100,
+            expectedPrice,
             priceProbability: {
               up: Math.round(upProb),
               down: Math.round(downProb),
@@ -992,14 +1012,19 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           // ✅ 현실적인 진입/청산가 산출 (Wall과 1-SD 기대값의 보수적 조합)
           // 지지선(entry): Wall과 1-SD 중 현재가에 더 가까운(높은) 값을 선택
           // 저항선(exit): Wall과 1-SD 중 현재가에 더 가까운(낮은) 값을 선택
-          const realisticEntry = Math.max(entry.putSupport, entry.expectedLower);
-          const realisticExit = Math.min(exit.callResistance, exit.expectedUpper);
+          const realisticEntry = Math.max(
+            entry.putSupport,
+            entry.expectedLower
+          );
+          const realisticExit = Math.min(
+            exit.callResistance,
+            exit.expectedUpper
+          );
 
           const baseTarget = realisticExit * 0.995; // 현실적인 1차 목표가
           const extensionTarget = realisticExit;
 
-          const profit =
-            ((baseTarget - realisticEntry) / realisticEntry) * 100;
+          const profit = ((baseTarget - realisticEntry) / realisticEntry) * 100;
           const extensionProfit =
             ((extensionTarget - realisticEntry) / realisticEntry) * 100;
 
@@ -1219,6 +1244,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         pcrFiltered: result.pcrFiltered,
         sentiment: result.sentiment,
         profitPotential: result.profitPotential,
+        expectedPrice: result.expectedPrice,
         priceProbability: result.priceProbability,
         expectedUpper: result.expectedUpper,
         expectedLower: result.expectedLower,
@@ -1261,7 +1287,7 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
     qqqMax,
     months,
     qqqTimeSeries,
-    qqqSwingScenarios,
+
     qqqSegmentedTrends,
     qqqSentimentRoadmap,
     qqqTrendForecast, // ✅ 추가된 필드
@@ -1307,6 +1333,13 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
       ? currentPrice * (1 + beta * (qMax / qPrice - 1))
       : expectedResistance + 10;
 
+    // ✅ 티커 예상 종가 산출 (QQQ의 첫 번째 만기 예상 종가 기준)
+    let tickerExpectedPrice: number | undefined = undefined;
+    if (Array.isArray(qqqTimeSeries) && qqqTimeSeries.length > 0) {
+      tickerExpectedPrice =
+        currentPrice * (1 + beta * (qqqTimeSeries[0].expectedPrice / qPrice - 1));
+    }
+
     // 타임시리즈 계산 (있는 경우)
     let tickerTimeSeries: TickerTimeSeriesData[] | undefined = undefined;
     if (Array.isArray(qqqTimeSeries)) {
@@ -1320,6 +1353,7 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           expectedLower: number;
           sentiment: number;
           totalGex: number;
+          expectedPrice: number;
           priceProbability: { up: number; down: number; neutral: number };
         }) => {
           // ✅ 1. QQQ 주요 지점에서의 티커 예상 가격 계산 (베타 적용)
@@ -1355,13 +1389,17 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           // ✅ 3. 현실적인 지지/저항 (보수적 접근: Wall과 1-SD 중 현재가에 더 가까운 것 선택)
           const realisticSupport = Math.max(tDownsideWall, tDownsideLimit);
           const realisticResistance = Math.min(tUpsideWall, tUpsideLimit);
+          
+          // 심리 반영 예상 종가 산출
+          const rangeMid = (realisticSupport + realisticResistance) / 2;
+          const rangeHalf = (realisticResistance - realisticSupport) / 2;
+          const sentimentBias = (q.sentiment / 100) * 0.3;
+          const expectedPrice = rangeMid + rangeHalf * (beta < 0 ? -sentimentBias : sentimentBias);
 
-          let profitPotential: number;
-          let priceProbability = { ...q.priceProbability };
-
-          // 수익률 계산 (지지선에서 사서 저항선에서 파는 시나리오)
-          profitPotential =
+          const profitPotential =
             ((realisticResistance - realisticSupport) / realisticSupport) * 100;
+
+          let priceProbability = { ...q.priceProbability };
 
           if (beta < 0) {
             // 확률 반전 (QQQ 상승 확률이 인버스 하락 확률이 됨)
@@ -1380,6 +1418,7 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
             expectedUpper: tUpsideLimit,
             expectedLower: tDownsideLimit,
             profitPotential,
+            expectedPrice,
             sentiment: q.sentiment,
             totalGex: q.totalGex,
             priceProbability,
@@ -1460,12 +1499,6 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
       }
       tickerSwingScenarios = combinations
         .sort((a, b) => {
-          // ✅ 1. 기간(Duration)이 짧은 것을 우선 (사용자 요청: 연속일 시나리오 확보)
-          const durationA =
-            new Date(a.exitDate).getTime() - new Date(a.entryDate).getTime();
-          const durationB =
-            new Date(b.exitDate).getTime() - new Date(b.entryDate).getTime();
-
           if (a.probability >= 70 && b.probability < 70) return -1;
           if (b.probability >= 70 && a.probability < 70) return 1;
 
@@ -1573,6 +1606,7 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
       expectedResistance,
       expectedMin,
       expectedMax,
+      expectedPrice: tickerExpectedPrice,
       changePercent: quote.regularMarketChangePercent || 0,
       timeSeries: tickerTimeSeries,
       swingScenarios: tickerSwingScenarios,
