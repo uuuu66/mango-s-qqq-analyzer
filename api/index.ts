@@ -791,9 +791,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             const remaining = 100 - neutralProb;
             const ratio = rawUpProb / (rawUpProb + rawDownProb);
 
-            // 방향성 확률이 88%를 넘지 않도록 캡(Cap) 적용 (금융 시장의 불확실성 반영)
-            upProb = Math.min(88, remaining * ratio);
-            downProb = Math.min(88, remaining * (1 - ratio));
+            // 방향성 확률이 80%를 넘지 않도록 캡(Cap) 적용 (금융 시장의 불확실성 반영)
+            upProb = Math.min(80, remaining * ratio);
+            downProb = Math.min(80, remaining * (1 - ratio));
 
             // 캡 적용 후 남는 확률을 다시 중립에 보태줌
             neutralProb = 100 - upProb - downProb;
@@ -807,8 +807,10 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
             const remaining = 100 - neutralProb;
             const ratio = upProb / (upProb + downProb);
-            upProb = remaining * ratio;
-            downProb = remaining * (1 - ratio);
+            upProb = Math.min(80, remaining * ratio);
+            downProb = Math.min(80, remaining * (1 - ratio));
+            // 캡 적용 후 다시 중립 보정
+            neutralProb = 100 - upProb - downProb;
           }
 
           const pcrFiltered =
@@ -1005,7 +1007,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
           // 기간이 길어질수록 불확실성 증가 (보정)
           scenarioProb -= duration * 2;
-          scenarioProb = Math.round(Math.max(35, Math.min(92, scenarioProb)));
+          scenarioProb = Math.round(Math.max(35, Math.min(80, scenarioProb)));
 
           // 수익률이 0보다 큰 경우만 시나리오에 추가
           if (profit > 0) {
@@ -1059,12 +1061,12 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       // 가격 변동과 심리 지수를 복합하여 전체 추세 결정
       if (totalRelDiff > 0.005 && sentimentDiff > 5) {
         direction = "상승";
-        prob = Math.min(65 + sentimentDiff / 2, 92);
+        prob = Math.min(65 + sentimentDiff / 2, 80);
         desc =
           "전체적인 가격 레벨이 상승 추세에 있으며, 매수 심리 또한 점진적으로 개선되고 있습니다.";
       } else if (totalRelDiff < -0.005 && sentimentDiff < -5) {
         direction = "하락";
-        prob = Math.min(65 + Math.abs(sentimentDiff) / 2, 92);
+        prob = Math.min(65 + Math.abs(sentimentDiff) / 2, 80);
         desc =
           "전체적인 가격 레벨이 하향 조정 중이며, 매도 압력이 우세한 구간입니다.";
       } else {
