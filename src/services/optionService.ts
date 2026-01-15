@@ -134,6 +134,44 @@ export interface TickerAnalysis {
   trendForecast?: TrendForecast[];
 }
 
+export interface TickerOptionExpirationList {
+  symbol: string;
+  expirations: string[];
+}
+
+export interface TickerOptionChainSummary {
+  callOi: number;
+  putOi: number;
+  callVolume: number;
+  putVolume: number;
+  pcr: number;
+  callWall: number | null;
+  putWall: number | null;
+  avgIv: number | null;
+  spotPrice: number | null;
+}
+
+export interface TickerOptionRow {
+  strike: number;
+  lastPrice: number;
+  openInterest: number;
+  volume: number;
+  impliedVolatility: number;
+  inTheMoney: boolean;
+}
+
+export interface TickerOptionChain {
+  symbol: string;
+  expirationDate: string;
+  summary: TickerOptionChainSummary;
+  calls: TickerOptionRow[];
+  puts: TickerOptionRow[];
+  links: {
+    overview: string;
+    expiration: string;
+  };
+}
+
 export const fetchTickerAnalysis = async (
   symbol: string,
   qqqPrice: number,
@@ -203,4 +241,37 @@ export const fetchQQQData = async (): Promise<AnalysisResult> => {
     console.error("Error fetching QQQ data:", error);
     throw error;
   }
+};
+
+export const fetchTickerOptionExpirations = async (
+  symbol: string,
+  type: "weekly" | "monthly"
+): Promise<TickerOptionExpirationList> => {
+  const response = await fetch(
+    `/api/ticker-options/expirations?symbol=${encodeURIComponent(
+      symbol
+    )}&type=${type}`
+  );
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "옵션 만기일 조회 실패");
+  }
+  return response.json();
+};
+
+export const fetchTickerOptionChain = async (
+  symbol: string,
+  date: string,
+  type: "weekly" | "monthly"
+): Promise<TickerOptionChain> => {
+  const response = await fetch(
+    `/api/ticker-options/expiration?symbol=${encodeURIComponent(
+      symbol
+    )}&date=${encodeURIComponent(date)}&type=${type}`
+  );
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "옵션 체인 조회 실패");
+  }
+  return response.json();
 };

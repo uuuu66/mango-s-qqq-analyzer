@@ -28,6 +28,24 @@ const VOLATILITY_TRIGGER_RATIO = 0.985;
 const IV_CLAMP_MIN = 0.0001;
 const IV_CLAMP_MAX = 5.0;
 
+const formatExpirationDate = (date: Date) =>
+  dayjs(date).utc().format("YYYY-MM-DD");
+
+const isThirdFriday = (date: Date) => {
+  const d = dayjs(date).utc();
+  return d.day() === 5 && d.date() >= 15 && d.date() <= 21;
+};
+
+const isWeeklyExpiration = (date: Date) => {
+  const d = dayjs(date).utc();
+  return d.day() === 5 && !isThirdFriday(date);
+};
+
+const isMonthlyExpiration = (date: Date) => {
+  const d = dayjs(date).utc();
+  return d.day() === 5 && isThirdFriday(date);
+};
+
 /**
  * 수치 안전화 헬퍼 (NaN 방지)
  */
@@ -549,6 +567,27 @@ interface SentimentRoadmap {
   sentiment: number;
   label: string;
   timeLabel: string;
+}
+
+interface TickerOptionSummary {
+  callOi: number;
+  putOi: number;
+  callVolume: number;
+  putVolume: number;
+  pcr: number;
+  callWall: number | null;
+  putWall: number | null;
+  avgIv: number | null;
+  spotPrice: number | null;
+}
+
+interface TickerOptionRow {
+  strike: number;
+  lastPrice: number;
+  openInterest: number;
+  volume: number;
+  impliedVolatility: number;
+  inTheMoney: boolean;
 }
 
 app.get("/api/analysis", async (_request: Request, response: Response) => {
@@ -1619,6 +1658,163 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
   } catch (err: unknown) {
     console.error("Ticker Analysis Error:", err);
     res.status(500).json({ error: "티커 분석 중 오류가 발생했습니다." });
+  }
+});
+
+/**
+ * 티커 옵션 만기일 목록 조회
+ */
+app.get("/api/ticker-options/expirations", async (req: Request, res: Response) => {
+  const symbol = String(req.query.symbol || "").trim();
+  const type = String(req.query.type || "weekly").trim().toLowerCase();
+  if (!symbol) {
+    return res.status(400).json({ error: "티커 심볼이 필요합니다." });
+  }
+
+  try {
+    const optionChain = await yahooFinance.options(symbol);
+    const expirationFilter =
+      type === "monthly" ? isMonthlyExpiration : isWeeklyExpiration;
+    const expirations = (optionChain?.expirationDates || [])
+      .filter((d) => expirationFilter(d as Date))
+      .map((d) => formatExpirationDate(d as Date))
+      .slice(0, 20);
+
+    res.json({
+      symbol: symbol.toUpperCase(),
+      type,
+      expirations,
+    });
+  } catch (err: unknown) {
+    console.error("Ticker Options Expirations Error:", err);
+    res.status(500).json({ error: "옵션 만기일 조회 중 오류가 발생했습니다." });
+  }
+});
+
+/**
+ * 티커 옵션 체인 및 요약 분석
+ */
+app.get("/api/ticker-options/expiration", async (req: Request, res: Response) => {
+  const symbol = String(req.query.symbol || "").trim();
+  const date = String(req.query.date || "").trim();
+  const type = String(req.query.type || "weekly").trim().toLowerCase();
+
+  if (!symbol || !date) {
+    return res.status(400).json({ error: "티커 심볼과 만기일이 필요합니다." });
+  }
+
+  try {
+    const optionChain = await yahooFinance.options(symbol);
+    const expirationDates = optionChain?.expirationDates || [];
+    const expirationFilter =
+      type === "monthly" ? isMonthlyExpiration : isWeeklyExpiration;
+    const targetDate = expirationDates.find(
+      (d) =>
+        expirationFilter(d as Date) && formatExpirationDate(d as Date) === date
+    );
+
+    if (!targetDate) {
+      return res.status(404).json({ error: "해당 만기일을 찾을 수 없습니다." });
+    }
+
+    const details = await yahooFinance.options(symbol, {
+      date: targetDate as Date,
+    });
+    const expirationData = details?.options?.[0];
+
+    if (!expirationData) {
+      return res.status(404).json({ error: "옵션 데이터를 찾을 수 없습니다." });
+    }
+
+    const calls = expirationData.calls || [];
+    const puts = expirationData.puts || [];
+
+    const sumBy = (
+      items: { openInterest?: number | string; volume?: number | string }[],
+      key: "openInterest" | "volume"
+    ) =>
+      items.reduce((acc, item) => acc + Number(item[key] || 0), 0);
+
+    const callOi = sumBy(calls, "openInterest");
+    const putOi = sumBy(puts, "openInterest");
+    const callVolume = sumBy(calls, "volume");
+    const putVolume = sumBy(puts, "volume");
+    const pcr = callOi > 0 ? putOi / callOi : 0;
+
+    const pickWall = (
+      items: { openInterest?: number | string; strike?: number }[]
+    ) =>
+      items.length > 0
+        ? items.reduce((p, c) =>
+            Number(c.openInterest || 0) > Number(p.openInterest || 0) ? c : p
+          ).strike ?? null
+        : null;
+
+    const callWall = pickWall(calls);
+    const putWall = pickWall(puts);
+
+    const quote = await yahooFinance.quote(symbol);
+    const spotPrice = quote?.regularMarketPrice || null;
+
+    let avgIv: number | null = null;
+    if (spotPrice) {
+      const nearAtm = [...calls, ...puts].filter((opt) => {
+        const strike = Number(opt.strike || 0);
+        return Math.abs(strike - spotPrice) / spotPrice < 0.05;
+      });
+      if (nearAtm.length > 0) {
+        avgIv =
+          nearAtm.reduce(
+            (acc, opt) => acc + Number(opt.impliedVolatility || 0),
+            0
+          ) / nearAtm.length;
+      }
+    }
+
+    const mapOptionRow = (opt: {
+      strike?: number;
+      lastPrice?: number;
+      openInterest?: number;
+      volume?: number;
+      impliedVolatility?: number;
+      inTheMoney?: boolean;
+    }): TickerOptionRow => ({
+      strike: Number(opt.strike || 0),
+      lastPrice: Number(opt.lastPrice || 0),
+      openInterest: Number(opt.openInterest || 0),
+      volume: Number(opt.volume || 0),
+      impliedVolatility: Number(opt.impliedVolatility || 0),
+      inTheMoney: Boolean(opt.inTheMoney),
+    });
+
+    const responsePayload = {
+      symbol: symbol.toUpperCase(),
+      expirationDate: date,
+      summary: {
+        callOi,
+        putOi,
+        callVolume,
+        putVolume,
+        pcr,
+        callWall,
+        putWall,
+        avgIv,
+        spotPrice,
+      } as TickerOptionSummary,
+      calls: calls.map(mapOptionRow).sort((a, b) => a.strike - b.strike),
+      puts: puts.map(mapOptionRow).sort((a, b) => a.strike - b.strike),
+      links: {
+        overview: `https://optioncharts.io/options/${symbol.toUpperCase()}`,
+        expiration: `https://optioncharts.io/options/${symbol.toUpperCase()}/option-chain?expiration_dates=${date}:${
+          type === "monthly" ? "m" : "w"
+        }`,
+      },
+    };
+
+    res.json(responsePayload);
+  } catch (err: unknown) {
+    console.error("Ticker Options Chain Error:", err);
+    res.status(500).json({ error: "옵션 체인 조회 중 오류가 발생했습니다." });
   }
 });
 

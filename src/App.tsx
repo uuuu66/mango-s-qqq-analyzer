@@ -26,9 +26,12 @@ import {
 import {
   fetchQQQData,
   fetchTickerAnalysis,
+  fetchTickerOptionChain,
+  fetchTickerOptionExpirations,
   type AnalysisResult,
   type Recommendation,
   type TickerAnalysis,
+  type TickerOptionChain,
 } from "./services/optionService";
 import "./App.css";
 
@@ -47,6 +50,27 @@ const App: React.FC = () => {
   );
   const [tickerLoading, setTickerLoading] = useState<boolean>(false);
   const [tickerError, setTickerError] = useState<string | null>(null);
+
+  const [tickerExpirations, setTickerExpirations] = useState<string[]>([]);
+  const [tickerOptionsLoading, setTickerOptionsLoading] =
+    useState<boolean>(false);
+  const [tickerOptionsError, setTickerOptionsError] = useState<string | null>(
+    null
+  );
+  const [selectedExpiration, setSelectedExpiration] = useState<string | null>(
+    null
+  );
+  const [tickerOptionChain, setTickerOptionChain] =
+    useState<TickerOptionChain | null>(null);
+  const [expirationType, setExpirationType] = useState<"weekly" | "monthly">(
+    "weekly"
+  );
+
+  const toYmd = useCallback((isoDate: string) => {
+    const date = new Date(isoDate);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toISOString().split("T")[0];
+  }, []);
 
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -150,6 +174,77 @@ const App: React.FC = () => {
       setTickerLoading(false);
     }
   };
+
+  const loadTickerOptionExpirations = useCallback(
+    async (symbol: string, type: "weekly" | "monthly") => {
+    setTickerOptionsLoading(true);
+    setTickerOptionsError(null);
+    try {
+        const result = await fetchTickerOptionExpirations(symbol, type);
+      setTickerExpirations(result.expirations);
+      if (result.expirations.length > 0) {
+        setSelectedExpiration(result.expirations[0]);
+      } else {
+        setSelectedExpiration(null);
+        setTickerOptionChain(null);
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "옵션 만기일 조회 실패";
+      setTickerOptionsError(message);
+      setTickerExpirations([]);
+      setSelectedExpiration(null);
+      setTickerOptionChain(null);
+    } finally {
+      setTickerOptionsLoading(false);
+    }
+    },
+    []
+  );
+
+  const loadTickerOptionChain = useCallback(
+    async (symbol: string, expiration: string, type: "weekly" | "monthly") => {
+      setTickerOptionsLoading(true);
+      setTickerOptionsError(null);
+      try {
+        const chain = await fetchTickerOptionChain(symbol, expiration, type);
+        setTickerOptionChain(chain);
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "옵션 체인 조회 실패";
+        setTickerOptionsError(message);
+        setTickerOptionChain(null);
+      } finally {
+        setTickerOptionsLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (tickerAnalysis?.symbol) {
+      loadTickerOptionExpirations(tickerAnalysis.symbol, expirationType);
+    } else {
+      setTickerExpirations([]);
+      setSelectedExpiration(null);
+      setTickerOptionChain(null);
+    }
+  }, [expirationType, loadTickerOptionExpirations, tickerAnalysis?.symbol]);
+
+  useEffect(() => {
+    if (tickerAnalysis?.symbol && selectedExpiration) {
+      loadTickerOptionChain(
+        tickerAnalysis.symbol,
+        selectedExpiration,
+        expirationType
+      );
+    }
+  }, [
+    expirationType,
+    loadTickerOptionChain,
+    selectedExpiration,
+    tickerAnalysis?.symbol,
+  ]);
 
   const downloadAsText = useCallback(() => {
     if (!data) return;
@@ -278,6 +373,17 @@ const App: React.FC = () => {
   };
 
   const currentStatus = getCurrentStatus();
+
+  const selectedTickerRange =
+    tickerAnalysis?.timeSeries?.find(
+      (item) => selectedExpiration && toYmd(item.isoDate) === selectedExpiration
+    ) || null;
+  const selectedTickerTarget =
+    selectedTickerRange &&
+    (selectedTickerRange.expectedPrice ??
+      (selectedTickerRange.expectedSupport +
+        selectedTickerRange.expectedResistance) /
+        2);
 
   if (loading) {
     return (
@@ -1271,8 +1377,23 @@ const App: React.FC = () => {
           )}
 
           {tickerAnalysis && (
-            <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex items-center justify-between mb-8">
+            <section className="mt-10 p-6 md:p-10 rounded-[32px] border-2 border-slate-200 bg-linear-to-br from-slate-50 via-white to-white shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-start justify-between mb-6 gap-4">
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-black text-slate-900">
+                    개별 티커 분석
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1 font-semibold uppercase tracking-wider">
+                    Beta-Adjusted Multi-Expiration Overview
+                  </p>
+                </div>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                  {tickerAnalysis.symbol}
+                </span>
+              </div>
+
+              <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between mb-8">
                 <div>
                   <h3 className="text-3xl font-black text-slate-900 tracking-tight">
                     {tickerAnalysis.symbol}
@@ -1395,6 +1516,275 @@ const App: React.FC = () => {
                     일일 수익률 기반 정밀 계산
                   </span>
                 </div>
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-slate-100">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <Zap className="w-3.5 h-3.5 text-indigo-500" />
+                      {tickerAnalysis.symbol} 옵션 만기별 분석
+                    </h4>
+                    <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setExpirationType("weekly")}
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-colors ${
+                          expirationType === "weekly"
+                            ? "bg-indigo-500 text-white"
+                            : "text-slate-500 hover:text-indigo-600"
+                        }`}
+                      >
+                        Weekly
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExpirationType("monthly")}
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-colors ${
+                          expirationType === "monthly"
+                            ? "bg-indigo-500 text-white"
+                            : "text-slate-500 hover:text-indigo-600"
+                        }`}
+                      >
+                        Monthly
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                    <a
+                      href={`https://optioncharts.io/options/${tickerAnalysis.symbol}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-indigo-500 hover:text-indigo-600"
+                    >
+                      OptionCharts 보기
+                    </a>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {tickerExpirations.length === 0 && !tickerOptionsLoading && (
+                    <span className="text-xs text-slate-400">
+                      만기일 정보를 불러오지 못했습니다.
+                    </span>
+                  )}
+                  {tickerExpirations.map((exp) => (
+                    <button
+                      key={exp}
+                      onClick={() => setSelectedExpiration(exp)}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-black border transition-colors ${
+                        selectedExpiration === exp
+                          ? "bg-indigo-500 text-white border-indigo-500"
+                          : "bg-white text-slate-500 border-slate-200 hover:border-indigo-200 hover:text-indigo-600"
+                      }`}
+                    >
+                      {exp}
+                    </button>
+                  ))}
+                </div>
+
+                {tickerOptionsLoading && (
+                  <div className="text-xs text-slate-400">
+                    옵션 데이터를 불러오는 중...
+                  </div>
+                )}
+                {tickerOptionsError && (
+                  <div className="text-xs text-red-500">{tickerOptionsError}</div>
+                )}
+
+                {tickerOptionChain && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between bg-slate-50/70 border border-slate-100 rounded-2xl p-4">
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          만기일
+                        </div>
+                        <div className="text-lg font-black text-slate-800">
+                          {tickerOptionChain.expirationDate}
+                        </div>
+                      </div>
+                      <div className="text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        <a
+                          href={tickerOptionChain.links.expiration}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-indigo-500 hover:text-indigo-600"
+                        >
+                          OptionCharts 만기별 보기
+                        </a>
+                      </div>
+                    </div>
+
+                    {selectedTickerRange && selectedTickerTarget && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="p-4 rounded-2xl border border-indigo-100 bg-indigo-50/50">
+                          <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-1">
+                            예상 종가 (Target)
+                          </div>
+                          <div className="text-xl font-black text-indigo-700">
+                            ${selectedTickerTarget.toFixed(2)}
+                          </div>
+                          <div className="text-[10px] text-indigo-400 mt-1">
+                            {selectedExpiration} 기준
+                          </div>
+                        </div>
+                        <div className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/50">
+                          <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">
+                            예상 지지선
+                          </div>
+                          <div className="text-xl font-black text-emerald-700">
+                            ${selectedTickerRange.expectedSupport.toFixed(2)}
+                          </div>
+                          <div className="text-[10px] text-emerald-400 mt-1">
+                            강한 하단 범위
+                          </div>
+                        </div>
+                        <div className="p-4 rounded-2xl border border-rose-100 bg-rose-50/50">
+                          <div className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-1">
+                            예상 저항선
+                          </div>
+                          <div className="text-xl font-black text-rose-700">
+                            ${selectedTickerRange.expectedResistance.toFixed(2)}
+                          </div>
+                          <div className="text-[10px] text-rose-400 mt-1">
+                            강한 상단 범위
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="p-4 rounded-2xl border border-slate-100 bg-white">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                          Put/Call Ratio
+                        </div>
+                        <div className="text-xl font-black text-slate-700">
+                          {tickerOptionChain.summary.pcr.toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-2xl border border-slate-100 bg-white">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                          Call Wall
+                        </div>
+                        <div className="text-xl font-black text-emerald-600">
+                          {tickerOptionChain.summary.callWall
+                            ? `$${tickerOptionChain.summary.callWall.toFixed(2)}`
+                            : "-"}
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-2xl border border-slate-100 bg-white">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                          Put Wall
+                        </div>
+                        <div className="text-xl font-black text-red-500">
+                          {tickerOptionChain.summary.putWall
+                            ? `$${tickerOptionChain.summary.putWall.toFixed(2)}`
+                            : "-"}
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-2xl border border-slate-100 bg-white">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                          Avg IV (ATM)
+                        </div>
+                        <div className="text-xl font-black text-slate-700">
+                          {tickerOptionChain.summary.avgIv
+                            ? `${(tickerOptionChain.summary.avgIv * 100).toFixed(
+                                1
+                              )}%`
+                            : "-"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden">
+                        <div className="px-4 py-3 bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-widest">
+                          Calls (Top OI)
+                        </div>
+                        <div className="max-h-[320px] overflow-y-auto">
+                          <table className="w-full text-[11px]">
+                            <thead className="text-slate-400 uppercase tracking-wider text-[10px]">
+                              <tr>
+                                <th className="px-4 py-2 text-left">Strike</th>
+                                <th className="px-4 py-2 text-right">Last</th>
+                                <th className="px-4 py-2 text-right">OI</th>
+                                <th className="px-4 py-2 text-right">IV</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {tickerOptionChain.calls
+                                .slice()
+                                .sort((a, b) => b.openInterest - a.openInterest)
+                                .slice(0, 12)
+                                .map((opt, idx) => (
+                                  <tr
+                                    key={`${opt.strike}-${idx}`}
+                                    className="border-t border-slate-100 text-slate-600"
+                                  >
+                                    <td className="px-4 py-2 font-mono">
+                                      ${opt.strike.toFixed(2)}
+                                    </td>
+                                    <td className="px-4 py-2 text-right font-mono">
+                                      ${opt.lastPrice.toFixed(2)}
+                                    </td>
+                                    <td className="px-4 py-2 text-right font-mono">
+                                      {opt.openInterest.toLocaleString()}
+                                    </td>
+                                    <td className="px-4 py-2 text-right font-mono">
+                                      {(opt.impliedVolatility * 100).toFixed(1)}%
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden">
+                        <div className="px-4 py-3 bg-red-50 text-red-600 text-xs font-bold uppercase tracking-widest">
+                          Puts (Top OI)
+                        </div>
+                        <div className="max-h-[320px] overflow-y-auto">
+                          <table className="w-full text-[11px]">
+                            <thead className="text-slate-400 uppercase tracking-wider text-[10px]">
+                              <tr>
+                                <th className="px-4 py-2 text-left">Strike</th>
+                                <th className="px-4 py-2 text-right">Last</th>
+                                <th className="px-4 py-2 text-right">OI</th>
+                                <th className="px-4 py-2 text-right">IV</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {tickerOptionChain.puts
+                                .slice()
+                                .sort((a, b) => b.openInterest - a.openInterest)
+                                .slice(0, 12)
+                                .map((opt, idx) => (
+                                  <tr
+                                    key={`${opt.strike}-${idx}`}
+                                    className="border-t border-slate-100 text-slate-600"
+                                  >
+                                    <td className="px-4 py-2 font-mono">
+                                      ${opt.strike.toFixed(2)}
+                                    </td>
+                                    <td className="px-4 py-2 text-right font-mono">
+                                      ${opt.lastPrice.toFixed(2)}
+                                    </td>
+                                    <td className="px-4 py-2 text-right font-mono">
+                                      {opt.openInterest.toLocaleString()}
+                                    </td>
+                                    <td className="px-4 py-2 text-right font-mono">
+                                      {(opt.impliedVolatility * 100).toFixed(1)}%
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Ticker Swing Scenarios */}
@@ -1778,6 +2168,7 @@ const App: React.FC = () => {
                 )}
               </div>
             </div>
+            </section>
           )}
         </div>
       </section>
