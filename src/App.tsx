@@ -65,7 +65,6 @@ const App: React.FC = () => {
   const [expirationType, setExpirationType] = useState<"weekly" | "monthly">(
     "weekly"
   );
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
   const toYmd = useCallback((isoDate: string) => {
     const date = new Date(isoDate);
@@ -131,17 +130,8 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const saved = localStorage.getItem("qqq-theme");
-    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")
-      .matches;
-    const initial = saved ? saved === "dark" : prefersDark;
-    setIsDarkMode(initial);
+    document.documentElement.classList.add("dark");
   }, []);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", isDarkMode);
-    localStorage.setItem("qqq-theme", isDarkMode ? "dark" : "light");
-  }, [isDarkMode]);
 
   const handleTickerSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -439,7 +429,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white dark:bg-slate-800 min-h-screen font-sans overflow-x-hidden text-slate-900 dark:text-amber-400 dark:**:text-amber-400">
+    <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white dark:bg-slate-900 min-h-screen font-sans overflow-x-hidden text-slate-900 dark:text-emerald-400 dark:**:text-emerald-400">
       <header className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-4">
           <img
@@ -512,14 +502,6 @@ const App: React.FC = () => {
           </div>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <button
-            onClick={() => setIsDarkMode((prev) => !prev)}
-            className="flex-1 sm:flex-none p-2 rounded-xl transition-colors flex items-center justify-center gap-2 px-4 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900"
-          >
-            <span className="text-xs font-bold">
-              {isDarkMode ? "라이트" : "다크"}
-            </span>
-          </button>
           <button
             onClick={downloadAsText}
             className="flex-1 sm:flex-none p-2 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl transition-colors flex items-center justify-center gap-2 px-4 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-200"

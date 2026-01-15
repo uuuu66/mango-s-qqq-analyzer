@@ -20,8 +20,8 @@
 
 :root.dark {
   color-scheme: dark;
-  color: #f59e0b;
-  background-color: #1f2937;
+  color: #22c55e;
+  background-color: #0f172a;
 }
 
 :root.dark .recharts-cartesian-grid line,
@@ -40,11 +40,11 @@
 
 :root.dark .recharts-cartesian-axis text,
 :root.dark .recharts-text {
-  fill: #f59e0b !important;
+  fill: #22c55e !important;
 }
 
 :root.dark .recharts-tooltip-wrapper {
-  color: #f59e0b !important;
+  color: #22c55e !important;
 }
 
 :root.dark .bg-white,
@@ -52,7 +52,7 @@
 :root.dark .bg-slate-100,
 :root.dark .bg-slate-50\/50,
 :root.dark .bg-slate-100\/50 {
-  background-color: #1f2937 !important;
+  background-color: #111827 !important;
 }
 
 :root.dark .bg-blue-50,
@@ -85,7 +85,7 @@
 :root.dark .bg-indigo-50\/50,
 :root.dark .bg-indigo-100,
 :root.dark .bg-indigo-950\/50 {
-  background-color: #1f2937 !important;
+  background-color: #111827 !important;
 }
 
 :root.dark .text-blue-500,
@@ -113,7 +113,7 @@
 :root.dark .text-amber-500,
 :root.dark .text-amber-600,
 :root.dark .text-yellow-500 {
-  color: #f59e0b !important;
+  color: #22c55e !important;
 }
 
 body {
