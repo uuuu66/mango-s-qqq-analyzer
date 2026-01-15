@@ -14,8 +14,6 @@ import {
 } from "recharts";
 import {
   TrendingUp,
-  TrendingDown,
-  Minus,
   AlertTriangle,
   RefreshCw,
   Download,
@@ -29,7 +27,6 @@ import {
   fetchTickerOptionChain,
   fetchTickerOptionExpirations,
   type AnalysisResult,
-  type Recommendation,
   type TickerAnalysis,
   type TickerOptionChain,
 } from "./services/optionService";
@@ -518,78 +515,6 @@ const App: React.FC = () => {
           </button>
         </div>
       </header>
-
-      {/* Analysis Table */}
-      <div className="mb-10 overflow-x-auto rounded-2xl border border-slate-200 shadow-sm relative">
-        <table className="w-full text-left border-collapse min-w-[600px]">
-          <thead>
-            <tr className="bg-slate-50 border-b">
-              <th className="px-6 py-4 font-semibold text-slate-700 text-sm">
-                포지션
-              </th>
-              <th className="px-6 py-4 font-semibold text-slate-700 text-sm">
-                모델 설명
-              </th>
-              <th className="px-6 py-4 font-semibold text-slate-700 text-sm">
-                가격 범위 ($)
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data?.recommendations.map((rec: Recommendation, index: number) => {
-              const isCurrent = currentStatus?.status === rec.status;
-              return (
-                <tr
-                  key={index}
-                  className={`border-b last:border-b-0 transition-all duration-300 ${
-                    isCurrent
-                      ? "bg-slate-50 ring-2 ring-inset ring-blue-500/20"
-                      : "hover:bg-slate-50/50"
-                  }`}
-                >
-                  <td
-                    className="px-6 py-4 font-bold text-sm"
-                    style={{ color: rec.color }}
-                  >
-                    <div className="flex items-center gap-2">
-                      {index < 1 ? (
-                        <AlertTriangle className="w-4 h-4" />
-                      ) : index < 3 ? (
-                        <TrendingUp className="w-4 h-4" />
-                      ) : index === 3 ? (
-                        <Minus className="w-4 h-4" />
-                      ) : (
-                        <TrendingDown className="w-4 h-4" />
-                      )}
-                      {rec.status}
-                      {isCurrent && (
-                        <span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                      )}
-                    </div>
-                  </td>
-                  <td
-                    className={`px-6 py-4 text-sm ${
-                      isCurrent
-                        ? "text-slate-900 font-semibold"
-                        : "text-slate-600"
-                    }`}
-                  >
-                    {rec.description}
-                  </td>
-                  <td
-                    className={`px-6 py-4 font-mono text-sm ${
-                      isCurrent ? "text-slate-900 font-bold" : "text-slate-800"
-                    }`}
-                  >
-                    {isCurrent && <span className="text-blue-500 mr-2">▶</span>}
-                    {rec.priceRange}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
 
       {/* Charts Section */}
       <div className="space-y-8">

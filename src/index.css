@@ -47,12 +47,23 @@
   color: #22c55e !important;
 }
 
+:root.dark .recharts-default-tooltip {
+  background-color: #000 !important;
+  border: 1px solid #334155 !important;
+  color: #22c55e !important;
+  box-shadow: none !important;
+}
+
+:root.dark .recharts-default-tooltip * {
+  color: #22c55e !important;
+}
+
 :root.dark .bg-white,
 :root.dark .bg-slate-50,
 :root.dark .bg-slate-100,
 :root.dark .bg-slate-50\/50,
 :root.dark .bg-slate-100\/50 {
-  background-color: #111827 !important;
+  background-color: #000000 !important;
 }
 
 :root.dark .bg-blue-50,
@@ -85,7 +96,7 @@
 :root.dark .bg-indigo-50\/50,
 :root.dark .bg-indigo-100,
 :root.dark .bg-indigo-950\/50 {
-  background-color: #111827 !important;
+  background-color: #000000 !important;
 }
 
 :root.dark .text-blue-500,
