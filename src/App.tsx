@@ -77,8 +77,10 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (showLoading: boolean = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const result = await fetchQQQData();
@@ -123,7 +125,9 @@ const App: React.FC = () => {
       setError(detailedError);
       setData(null);
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -167,7 +171,7 @@ const App: React.FC = () => {
 
     pollingRef.current = window.setInterval(() => {
       if (!loading) {
-        loadData();
+        loadData(false);
       }
     }, 5000);
 
@@ -438,7 +442,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    loadData();
+    loadData(true);
   }, [loadData]);
 
   const getCurrentStatus = () => {
@@ -485,7 +489,7 @@ const App: React.FC = () => {
         </h2>
         <p className="text-slate-500 mb-8 max-w-md">ㅠㅠ</p>
         <button
-          onClick={loadData}
+          onClick={() => loadData(true)}
           className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
         >
           <RefreshCw className="w-5 h-5" /> 다시 시도
@@ -591,7 +595,7 @@ const App: React.FC = () => {
             <span className="text-xs font-bold">원본 TXT</span>
           </button>
           <button
-            onClick={loadData}
+            onClick={() => loadData(true)}
             className="flex-1 sm:flex-none p-2 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl transition-colors flex items-center justify-center gap-2 px-4 border border-slate-200 dark:border-slate-700 text-blue-600"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
