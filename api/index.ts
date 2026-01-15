@@ -1314,6 +1314,59 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 });
 
 /**
+ * Yahoo Finance 원본 데이터 TXT 다운로드용
+ */
+app.get("/api/yahoo-raw", async (_request: Request, response: Response) => {
+  try {
+    const quote = await yahooFinance.quote("QQQ");
+    const optionChain = await yahooFinance.options("QQQ");
+
+    if (!optionChain || !optionChain.expirationDates?.length) {
+      return response.status(500).json({ error: "만기일 데이터를 가져오지 못했습니다." });
+    }
+
+    const rawExpirationDates = optionChain.expirationDates;
+    const now = dayjs().tz("America/New_York");
+    const todayStr = now.format("YYYY-MM-DD");
+    const filterLimit = now.startOf("day").add(30, "day").format("YYYY-MM-DD");
+
+    const targetExpirations = rawExpirationDates
+      .filter((d) => {
+        const expStr = dayjs(d).utc().format("YYYY-MM-DD");
+        return expStr >= todayStr && expStr <= filterLimit;
+      });
+
+    const finalExpirations =
+      targetExpirations.length >= 5
+        ? targetExpirations
+        : rawExpirationDates
+            .filter((d) => dayjs(d).utc().format("YYYY-MM-DD") >= todayStr)
+            .slice(0, 5);
+
+    const optionsByExpiration = await Promise.all(
+      finalExpirations.map(async (d) => {
+        const details = await yahooFinance.options("QQQ", { date: d });
+        return {
+          expirationDate: dayjs(d).utc().format("YYYY-MM-DD"),
+          details,
+        };
+      })
+    );
+
+    response.json({
+      fetchedAt: new Date().toISOString(),
+      quote,
+      optionChain,
+      optionsByExpiration,
+    });
+  } catch (err: unknown) {
+    console.error("Yahoo Raw Data Error:", err);
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    response.status(500).json({ error: errorMsg });
+  }
+});
+
+/**
  * 티커별 베타 기반 기대 지지/저항선 분석 API
  */
 app.post("/api/ticker-analysis", async (req: Request, res: Response) => {

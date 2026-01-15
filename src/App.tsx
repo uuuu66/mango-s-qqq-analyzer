@@ -360,6 +360,30 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   }, [data]);
 
+  const downloadYahooRaw = useCallback(async () => {
+    try {
+      const response = await fetch("/api/yahoo-raw");
+      if (!response.ok) {
+        throw new Error("원본 데이터를 가져오지 못했습니다.");
+      }
+      const raw = await response.json();
+      const text = JSON.stringify(raw, null, 2);
+      const blob = new Blob([text], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `qqq-yahoo-raw-${new Date()
+        .toISOString()
+        .split("T")[0]}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      console.error("Raw Download Error:", err);
+    }
+  }, []);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
@@ -505,6 +529,13 @@ const App: React.FC = () => {
           >
             <Download className="w-4 h-4" />
             <span className="text-xs font-bold">TXT 저장</span>
+          </button>
+          <button
+            onClick={downloadYahooRaw}
+            className="flex-1 sm:flex-none p-2 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl transition-colors flex items-center justify-center gap-2 px-4 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-200"
+          >
+            <Download className="w-4 h-4" />
+            <span className="text-xs font-bold">원본 TXT</span>
           </button>
           <button
             onClick={loadData}
