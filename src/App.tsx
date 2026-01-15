@@ -1030,9 +1030,9 @@ const App: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-6 mt-12">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-purple-500" />
+        <div className="bg-black p-6 rounded-2xl border border-slate-700">
+          <h3 className="text-lg font-bold text-emerald-400 mb-6 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-emerald-400" />
             만기별 옵션 분포 기반 가격 변동 확률 (Option Distribution
             Probabilities)
           </h3>
@@ -1040,22 +1040,22 @@ const App: React.FC = () => {
             {data?.timeSeries?.slice(0, 6).map((item, idx) => (
               <div
                 key={idx}
-                className="p-5 rounded-2xl border border-slate-100 bg-slate-50/50"
+                className="p-5 rounded-2xl border border-slate-700 bg-black"
               >
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 pb-2 border-b border-slate-200/50">
+                <div className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest mb-3 pb-2 border-b border-slate-700">
                   {item.date} 만기 분포 분석
                 </div>
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between text-[11px] font-bold mb-1.5">
-                      <span className="text-emerald-600">상승 확률</span>
-                      <span className="text-slate-900">
+                      <span className="text-emerald-300">상승 확률</span>
+                      <span className="text-emerald-400">
                         {item.priceProbability?.up ?? 0}%
                       </span>
                     </div>
-                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-emerald-500 transition-all duration-1000"
+                        className="h-full bg-emerald-400 transition-all duration-1000"
                         style={{
                           width: `${item.priceProbability?.up ?? 0}%`,
                         }}
@@ -1064,14 +1064,14 @@ const App: React.FC = () => {
                   </div>
                   <div>
                     <div className="flex justify-between text-[11px] font-bold mb-1.5">
-                      <span className="text-red-600">하락 확률</span>
-                      <span className="text-slate-900">
+                      <span className="text-emerald-300">하락 확률</span>
+                      <span className="text-emerald-400">
                         {item.priceProbability?.down ?? 0}%
                       </span>
                     </div>
-                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-red-500 transition-all duration-1000"
+                        className="h-full bg-emerald-400 transition-all duration-1000"
                         style={{
                           width: `${item.priceProbability?.down ?? 0}%`,
                         }}
@@ -1080,14 +1080,14 @@ const App: React.FC = () => {
                   </div>
                   <div>
                     <div className="flex justify-between text-[11px] font-bold mb-1.5">
-                      <span className="text-slate-500">횡보 확률</span>
-                      <span className="text-slate-900">
+                      <span className="text-emerald-300">횡보 확률</span>
+                      <span className="text-emerald-400">
                         {item.priceProbability?.neutral ?? 0}%
                       </span>
                     </div>
-                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-slate-400 transition-all duration-1000"
+                        className="h-full bg-emerald-400 transition-all duration-1000"
                         style={{
                           width: `${item.priceProbability?.neutral ?? 0}%`,
                         }}
@@ -1095,7 +1095,7 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                <p className="mt-4 text-[9px] text-slate-400 leading-relaxed">
+                <p className="mt-4 text-[9px] text-emerald-300 leading-relaxed">
                   * 해당 만기일의 콜/풋 GEX 에너지 분포 및 외가격(OTM) 옵션
                   비중을 분석한 통계적 기대 확률입니다.
                 </p>
@@ -1106,9 +1106,9 @@ const App: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <Zap className="w-5 h-5 text-yellow-500" />
+        <div className="bg-black p-6 rounded-2xl border border-slate-700">
+          <h3 className="text-lg font-bold text-emerald-400 mb-6 flex items-center gap-2">
+            <Zap className="w-5 h-5 text-emerald-400" />
             1일 스캘핑 시나리오 (Daily Scalping)
           </h3>
           <div className="space-y-4">
@@ -1123,34 +1123,34 @@ const App: React.FC = () => {
               return (
                 <div
                   key={idx}
-                  className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 group hover:border-yellow-200 transition-colors"
+                  className="flex items-center justify-between p-4 bg-black rounded-xl border border-slate-700 transition-colors"
                 >
                   <div>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    <div className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest mb-1">
                       {item.date} 단기 타점
                     </div>
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="font-bold text-blue-600">
+                      <span className="font-bold text-emerald-400">
                         Buy @ ${buyPrice?.toFixed(2)}
                       </span>
-                      <span className="text-slate-300">→</span>
-                      <span className="font-bold text-red-600">
+                      <span className="text-emerald-300">→</span>
+                      <span className="font-bold text-emerald-400">
                         Sell @ ${targetPrice?.toFixed(2)}
                       </span>
                     </div>
-                    <div className="flex gap-1 h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-slate-100 mt-2">
+                    <div className="flex gap-1 h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-slate-800 mt-2">
                       <div
-                        className="bg-emerald-500"
+                        className="bg-emerald-400"
                         style={{ width: `${item.priceProbability?.up ?? 0}%` }}
                       />
                       <div
-                        className="bg-slate-400"
+                        className="bg-emerald-400/70"
                         style={{
                           width: `${item.priceProbability?.neutral ?? 0}%`,
                         }}
                       />
                       <div
-                        className="bg-red-500"
+                        className="bg-emerald-400/40"
                         style={{
                           width: `${item.priceProbability?.down ?? 0}%`,
                         }}
