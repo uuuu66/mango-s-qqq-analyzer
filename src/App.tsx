@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   XAxis,
   YAxis,
@@ -62,6 +62,7 @@ const App: React.FC = () => {
   const [expirationType, setExpirationType] = useState<"weekly" | "monthly">(
     "weekly"
   );
+  const pollingRef = useRef<number | null>(null);
 
   const toYmd = useCallback((isoDate: string) => {
     const date = new Date(isoDate);
@@ -125,6 +126,58 @@ const App: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  const isMarketOpenNY = useCallback(() => {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(now);
+    const getPart = (type: string) =>
+      parts.find((p) => p.type === type)?.value ?? "";
+    const weekday = getPart("weekday");
+    const hour = Number(getPart("hour"));
+    const minute = Number(getPart("minute"));
+
+    const isWeekday =
+      weekday === "Mon" ||
+      weekday === "Tue" ||
+      weekday === "Wed" ||
+      weekday === "Thu" ||
+      weekday === "Fri";
+    if (!isWeekday) return false;
+
+    const minutes = hour * 60 + minute;
+    const open = 9 * 60 + 30;
+    const close = 16 * 60;
+    return minutes >= open && minutes <= close;
+  }, []);
+
+  useEffect(() => {
+    if (pollingRef.current) {
+      window.clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+
+    if (!isMarketOpenNY()) return;
+
+    pollingRef.current = window.setInterval(() => {
+      if (!loading) {
+        loadData();
+      }
+    }, 5000);
+
+    return () => {
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [isMarketOpenNY, loadData, loading]);
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
