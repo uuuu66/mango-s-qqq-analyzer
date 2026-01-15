@@ -63,6 +63,7 @@ const App: React.FC = () => {
     "weekly"
   );
   const pollingRef = useRef<number | null>(null);
+  const tickerPollingRef = useRef<number | null>(null);
 
   const toYmd = useCallback((isoDate: string) => {
     const date = new Date(isoDate);
@@ -187,6 +188,45 @@ const App: React.FC = () => {
     document.documentElement.classList.add("dark");
   }, []);
 
+  const loadTickerAnalysis = useCallback(
+    async (showLoading: boolean, symbol: string) => {
+      if (!data) return;
+      if (showLoading) {
+        setTickerLoading(true);
+      }
+      setTickerError(null);
+      try {
+        const qqqMin = data.recommendations[0].max;
+        const qqqMax = data.recommendations[5].max;
+
+        const result = await fetchTickerAnalysis(
+          symbol,
+          data.currentPrice,
+          data.putSupport,
+          data.callResistance,
+          qqqMin,
+          qqqMax,
+          betaPeriod,
+          data.timeSeries,
+          data.swingScenarios,
+          data.segmentedTrends,
+          data.sentimentRoadmap,
+          data.trendForecast
+        );
+        setTickerAnalysis(result);
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "분석에 실패했습니다.";
+        setTickerError(message);
+      } finally {
+        if (showLoading) {
+          setTickerLoading(false);
+        }
+      }
+    },
+    [betaPeriod, data]
+  );
+
   const handleTickerSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tickerInput || !data) return;
@@ -202,36 +242,30 @@ const App: React.FC = () => {
       ticker_name: tickerInput,
       page_path: window.location.pathname,
     });
-    setTickerLoading(true);
-    setTickerError(null);
-    try {
-      const qqqMin = data.recommendations[0].max;
-      const qqqMax = data.recommendations[5].max;
-
-      const result = await fetchTickerAnalysis(
-        tickerInput,
-        data.currentPrice,
-        data.putSupport,
-        data.callResistance,
-        qqqMin,
-        qqqMax,
-        betaPeriod,
-        data.timeSeries,
-        data.swingScenarios,
-        data.segmentedTrends,
-        data.sentimentRoadmap,
-        data.trendForecast
-      );
-      setTickerAnalysis(result);
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "분석에 실패했습니다.";
-      setTickerError(message);
-      setTickerAnalysis(null);
-    } finally {
-      setTickerLoading(false);
-    }
+    loadTickerAnalysis(true, tickerInput);
   };
+
+  useEffect(() => {
+    if (tickerPollingRef.current) {
+      window.clearInterval(tickerPollingRef.current);
+      tickerPollingRef.current = null;
+    }
+
+    if (!isMarketOpenNY() || !tickerAnalysis?.symbol) return;
+
+    tickerPollingRef.current = window.setInterval(() => {
+      if (!tickerLoading && tickerAnalysis?.symbol) {
+        loadTickerAnalysis(false, tickerAnalysis.symbol);
+      }
+    }, 5000);
+
+    return () => {
+      if (tickerPollingRef.current) {
+        window.clearInterval(tickerPollingRef.current);
+        tickerPollingRef.current = null;
+      }
+    };
+  }, [isMarketOpenNY, loadTickerAnalysis, tickerAnalysis?.symbol, tickerLoading]);
 
   const loadTickerOptionExpirations = useCallback(
     async (symbol: string, type: "weekly" | "monthly") => {
