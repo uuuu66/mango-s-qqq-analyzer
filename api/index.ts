@@ -1677,8 +1677,7 @@ app.get("/api/ticker-options/expirations", async (req: Request, res: Response) =
       type === "monthly" ? isMonthlyExpiration : isWeeklyExpiration;
     const expirations = (optionChain?.expirationDates || [])
       .filter((d) => expirationFilter(d as Date))
-      .map((d) => formatExpirationDate(d as Date))
-      .slice(0, 20);
+      .map((d) => formatExpirationDate(d as Date));
 
     res.json({
       symbol: symbol.toUpperCase(),

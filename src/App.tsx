@@ -65,6 +65,7 @@ const App: React.FC = () => {
   const [expirationType, setExpirationType] = useState<"weekly" | "monthly">(
     "weekly"
   );
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
   const toYmd = useCallback((isoDate: string) => {
     const date = new Date(isoDate);
@@ -128,6 +129,19 @@ const App: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("qqq-theme");
+    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")
+      .matches;
+    const initial = saved ? saved === "dark" : prefersDark;
+    setIsDarkMode(initial);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDarkMode);
+    localStorage.setItem("qqq-theme", isDarkMode ? "dark" : "light");
+  }, [isDarkMode]);
 
   const handleTickerSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -425,13 +439,13 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white min-h-screen font-sans overflow-x-hidden">
-      <header className="mb-8 border-b pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white dark:bg-slate-950 min-h-screen font-sans overflow-x-hidden text-slate-900 dark:text-slate-100">
+      <header className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-4">
           <img
             src="/mqa.jpg"
             alt="MQA Logo"
-            className="w-12 h-12 rounded-xl object-cover shadow-sm border border-slate-100"
+            className="w-12 h-12 rounded-xl object-cover border border-slate-100 dark:border-slate-800"
           />
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
@@ -499,15 +513,23 @@ const App: React.FC = () => {
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <button
+            onClick={() => setIsDarkMode((prev) => !prev)}
+            className="flex-1 sm:flex-none p-2 rounded-xl transition-colors flex items-center justify-center gap-2 px-4 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900"
+          >
+            <span className="text-xs font-bold">
+              {isDarkMode ? "라이트" : "다크"}
+            </span>
+          </button>
+          <button
             onClick={downloadAsText}
-            className="flex-1 sm:flex-none p-2 hover:bg-slate-100 rounded-xl transition-colors flex items-center justify-center gap-2 px-4 border border-slate-200 text-slate-600"
+            className="flex-1 sm:flex-none p-2 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl transition-colors flex items-center justify-center gap-2 px-4 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-200"
           >
             <Download className="w-4 h-4" />
             <span className="text-xs font-bold">TXT 저장</span>
           </button>
           <button
             onClick={loadData}
-            className="flex-1 sm:flex-none p-2 hover:bg-slate-100 rounded-xl transition-colors flex items-center justify-center gap-2 px-4 border border-slate-200 text-blue-600"
+            className="flex-1 sm:flex-none p-2 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl transition-colors flex items-center justify-center gap-2 px-4 border border-slate-200 dark:border-slate-700 text-blue-600"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             <span className="text-xs font-bold">새로고침</span>
@@ -1332,14 +1354,14 @@ const App: React.FC = () => {
                 value={tickerInput}
                 onChange={(e) => setTickerInput(e.target.value.toUpperCase())}
                 placeholder="티커 입력 (예: TSLA, NVDA)"
-                className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold"
+                className="w-full pl-12 pr-4 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
               />
             </div>
             <div className="flex gap-2">
               <select
                 value={betaPeriod}
                 onChange={(e) => setBetaPeriod(Number(e.target.value))}
-                className="px-4 py-3.5 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold text-slate-700 text-sm appearance-none cursor-pointer"
+                className="px-4 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold text-slate-700 dark:text-slate-200 text-sm appearance-none cursor-pointer"
               >
                 <option value={1}>1개월 베타</option>
                 <option value={3}>3개월 베타</option>
@@ -1350,7 +1372,7 @@ const App: React.FC = () => {
               <button
                 type="submit"
                 disabled={tickerLoading || !data}
-                className="px-6 py-3.5 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 disabled:opacity-50 transition-all flex items-center gap-2 whitespace-nowrap shadow-lg shadow-slate-200"
+                className="px-6 py-3.5 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 disabled:opacity-50 transition-all flex items-center gap-2 whitespace-nowrap"
               >
                 {tickerLoading ? (
                   <RefreshCw className="w-5 h-5 animate-spin" />
@@ -1377,33 +1399,33 @@ const App: React.FC = () => {
           )}
 
           {tickerAnalysis && (
-            <section className="mt-10 p-6 md:p-10 rounded-[32px] border-2 border-slate-200 bg-linear-to-br from-slate-50 via-white to-white shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex items-start justify-between mb-6 gap-4">
+            <section className="mt-10 p-4 md:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-3">
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-black text-slate-900">
+                  <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-50">
                     개별 티커 분석
                   </h2>
-                  <p className="text-xs text-slate-500 mt-1 font-semibold uppercase tracking-wider">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-semibold uppercase tracking-wider">
                     Beta-Adjusted Multi-Expiration Overview
                   </p>
                 </div>
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                   {tickerAnalysis.symbol}
                 </span>
               </div>
 
-              <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between mb-8">
+              <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                 <div>
-                  <h3 className="text-3xl font-black text-slate-900 tracking-tight">
+                  <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-50 tracking-tight">
                     {tickerAnalysis.symbol}
                   </h3>
-                  <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
+                  <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">
                     Beta-Adjusted Analysis
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-mono font-black text-slate-900">
+                  <div className="text-2xl font-mono font-black text-slate-900 dark:text-slate-50">
                     ${tickerAnalysis.currentPrice?.toFixed(2)}
                   </div>
                   <div
@@ -1420,13 +1442,13 @@ const App: React.FC = () => {
               </div>
 
               {tickerAnalysis.expectedPrice && (
-                <div className="mb-8 p-6 bg-blue-600 rounded-3xl text-white shadow-lg shadow-blue-200">
-                  <div className="flex items-center justify-between">
+                <div className="mb-6 p-4 md:p-6 bg-blue-600 rounded-2xl text-white">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <div className="text-[10px] font-bold text-blue-100 uppercase tracking-widest mb-1">
                         오늘의 예상 종가 (Target)
                       </div>
-                      <div className="text-4xl font-mono font-black">
+                      <div className="text-3xl md:text-4xl font-mono font-black">
                         ${tickerAnalysis.expectedPrice.toFixed(2)}
                       </div>
                     </div>
@@ -1442,30 +1464,30 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* 하방 지지선 그룹 */}
                 <div className="space-y-4">
-                  <div className="p-6 bg-slate-100/50 rounded-2xl border border-slate-200">
+                  <div className="p-4 bg-slate-100/50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
                     <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
                       최저 위험선 (Extreme Risk)
                     </div>
-                    <div className="text-2xl font-mono font-black text-slate-700">
+                    <div className="text-2xl font-mono font-black text-slate-700 dark:text-slate-100">
                       ${tickerAnalysis.expectedMin?.toFixed(2)}
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-2 font-medium">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 font-medium">
                       QQQ가 ${data?.recommendations[0].max?.toFixed(2)}까지
                       폭락할 때
                     </p>
                   </div>
 
-                  <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
+                  <div className="p-4 bg-blue-50/70 dark:bg-blue-950/40 rounded-2xl border border-blue-100 dark:border-blue-900/60">
                     <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">
                       예상 지지선 (Support)
                     </div>
-                    <div className="text-2xl font-mono font-black text-blue-900">
+                    <div className="text-2xl font-mono font-black text-blue-900 dark:text-blue-100">
                       ${tickerAnalysis.expectedSupport?.toFixed(2)}
                     </div>
-                    <p className="text-[11px] text-blue-600/70 mt-2 font-medium">
+                    <p className="text-[11px] text-blue-600/70 dark:text-blue-200 mt-2 font-medium">
                       QQQ가 ${data?.putSupport?.toFixed(2)}까지 밀릴 때
                     </p>
                   </div>
@@ -1473,26 +1495,26 @@ const App: React.FC = () => {
 
                 {/* 상방 저항선 그룹 */}
                 <div className="space-y-4">
-                  <div className="p-6 bg-red-50 rounded-2xl border border-red-100">
+                  <div className="p-4 bg-red-50/70 dark:bg-red-950/40 rounded-2xl border border-red-100 dark:border-red-900/60">
                     <div className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-2">
                       예상 저항선 (Resistance)
                     </div>
-                    <div className="text-2xl font-mono font-black text-red-900">
+                    <div className="text-2xl font-mono font-black text-red-900 dark:text-red-100">
                       ${tickerAnalysis.expectedResistance?.toFixed(2)}
                     </div>
-                    <p className="text-[11px] text-red-600/70 mt-2 font-medium">
+                    <p className="text-[11px] text-red-600/70 dark:text-red-200 mt-2 font-medium">
                       QQQ가 ${data?.callResistance?.toFixed(2)}까지 오를 때
                     </p>
                   </div>
 
-                  <div className="p-6 bg-orange-50 rounded-2xl border border-orange-100">
+                  <div className="p-4 bg-orange-50/70 dark:bg-orange-950/40 rounded-2xl border border-orange-100 dark:border-orange-900/60">
                     <div className="text-[10px] font-bold text-orange-500 uppercase tracking-widest mb-2">
                       최대 목표선 (Strong Sell)
                     </div>
-                    <div className="text-2xl font-mono font-black text-orange-900">
+                    <div className="text-2xl font-mono font-black text-orange-900 dark:text-orange-100">
                       ${tickerAnalysis.expectedMax?.toFixed(2)}
                     </div>
-                    <p className="text-[11px] text-orange-600/70 mt-2 font-medium">
+                    <p className="text-[11px] text-orange-600/70 dark:text-orange-200 mt-2 font-medium">
                       QQQ가 ${data?.recommendations[5].max?.toFixed(2)}까지
                       과열될 때
                     </p>
@@ -1500,15 +1522,15 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-6 p-4 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-tight">
+              <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-slate-100 dark:border-slate-800">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">
                   적용 베타 ($\beta$)
                 </span>
                 <div className="flex flex-col items-end">
-                  <span className="font-mono font-bold text-slate-700 bg-white px-3 py-1 rounded-lg border border-slate-200">
+                  <span className="font-mono font-bold text-slate-700 dark:text-slate-100 bg-white dark:bg-slate-950 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
                     {tickerAnalysis.beta?.toFixed(2)}
                   </span>
-                  <span className="text-[9px] text-slate-400 mt-1 font-medium">
+                  <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
                     *최근{" "}
                     {betaPeriod >= 12
                       ? `${betaPeriod / 12}년`
@@ -1525,7 +1547,7 @@ const App: React.FC = () => {
                       <Zap className="w-3.5 h-3.5 text-indigo-500" />
                       {tickerAnalysis.symbol} 옵션 만기별 분석
                     </h4>
-                    <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white p-0.5">
+                    <div className="flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-0.5">
                       <button
                         type="button"
                         onClick={() => setExpirationType("weekly")}
@@ -1594,7 +1616,7 @@ const App: React.FC = () => {
 
                 {tickerOptionChain && (
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between bg-slate-50/70 border border-slate-100 rounded-2xl p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4">
                       <div>
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                           만기일
@@ -1616,8 +1638,8 @@ const App: React.FC = () => {
                     </div>
 
                     {selectedTickerRange && selectedTickerTarget && (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div className="p-4 rounded-2xl border border-indigo-100 bg-indigo-50/50">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/50">
                           <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-1">
                             예상 종가 (Target)
                           </div>
@@ -1628,7 +1650,7 @@ const App: React.FC = () => {
                             {selectedExpiration} 기준
                           </div>
                         </div>
-                        <div className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/50">
+                        <div className="p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/40">
                           <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">
                             예상 지지선
                           </div>
@@ -1639,7 +1661,7 @@ const App: React.FC = () => {
                             강한 하단 범위
                           </div>
                         </div>
-                        <div className="p-4 rounded-2xl border border-rose-100 bg-rose-50/50">
+                        <div className="p-4 rounded-2xl border border-rose-100 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/40">
                           <div className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-1">
                             예상 저항선
                           </div>
@@ -1654,7 +1676,7 @@ const App: React.FC = () => {
                     )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div className="p-4 rounded-2xl border border-slate-100 bg-white">
+                      <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
                           Put/Call Ratio
                         </div>
@@ -1662,7 +1684,7 @@ const App: React.FC = () => {
                           {tickerOptionChain.summary.pcr.toFixed(2)}
                         </div>
                       </div>
-                      <div className="p-4 rounded-2xl border border-slate-100 bg-white">
+                      <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
                           Call Wall
                         </div>
@@ -1672,7 +1694,7 @@ const App: React.FC = () => {
                             : "-"}
                         </div>
                       </div>
-                      <div className="p-4 rounded-2xl border border-slate-100 bg-white">
+                      <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
                           Put Wall
                         </div>
@@ -1682,7 +1704,7 @@ const App: React.FC = () => {
                             : "-"}
                         </div>
                       </div>
-                      <div className="p-4 rounded-2xl border border-slate-100 bg-white">
+                      <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
                           Avg IV (ATM)
                         </div>
@@ -1697,13 +1719,13 @@ const App: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden">
-                        <div className="px-4 py-3 bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-widest">
+                      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                        <div className="px-4 py-3 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-200 text-xs font-bold uppercase tracking-widest">
                           Calls (Top OI)
                         </div>
                         <div className="max-h-[320px] overflow-y-auto">
                           <table className="w-full text-[11px]">
-                            <thead className="text-slate-400 uppercase tracking-wider text-[10px]">
+                            <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
                               <tr>
                                 <th className="px-4 py-2 text-left">Strike</th>
                                 <th className="px-4 py-2 text-right">Last</th>
@@ -1719,7 +1741,7 @@ const App: React.FC = () => {
                                 .map((opt, idx) => (
                                   <tr
                                     key={`${opt.strike}-${idx}`}
-                                    className="border-t border-slate-100 text-slate-600"
+                                    className="border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-200"
                                   >
                                     <td className="px-4 py-2 font-mono">
                                       ${opt.strike.toFixed(2)}
@@ -1740,13 +1762,13 @@ const App: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden">
-                        <div className="px-4 py-3 bg-red-50 text-red-600 text-xs font-bold uppercase tracking-widest">
+                      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                        <div className="px-4 py-3 bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-200 text-xs font-bold uppercase tracking-widest">
                           Puts (Top OI)
                         </div>
                         <div className="max-h-[320px] overflow-y-auto">
                           <table className="w-full text-[11px]">
-                            <thead className="text-slate-400 uppercase tracking-wider text-[10px]">
+                            <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
                               <tr>
                                 <th className="px-4 py-2 text-left">Strike</th>
                                 <th className="px-4 py-2 text-right">Last</th>
@@ -1762,7 +1784,7 @@ const App: React.FC = () => {
                                 .map((opt, idx) => (
                                   <tr
                                     key={`${opt.strike}-${idx}`}
-                                    className="border-t border-slate-100 text-slate-600"
+                                    className="border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-200"
                                   >
                                     <td className="px-4 py-2 font-mono">
                                       ${opt.strike.toFixed(2)}
