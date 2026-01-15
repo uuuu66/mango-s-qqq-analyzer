@@ -439,7 +439,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white dark:bg-slate-950 min-h-screen font-sans overflow-x-hidden text-slate-900 dark:text-slate-100">
+    <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white dark:bg-slate-800 min-h-screen font-sans overflow-x-hidden text-slate-900 dark:text-amber-400 dark:**:text-amber-400">
       <header className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-4">
           <img
