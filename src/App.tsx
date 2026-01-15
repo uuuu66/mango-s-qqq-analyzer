@@ -932,8 +932,8 @@ const App: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+        <div className="bg-black p-6 rounded-2xl border border-slate-700">
+          <h3 className="text-lg font-bold text-emerald-400 mb-6 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-emerald-500" />
             복합 일자별 스윙 시나리오 (Swing Strategy)
           </h3>
@@ -941,35 +941,35 @@ const App: React.FC = () => {
             {data?.swingScenarios?.map((scenario, idx) => (
               <div
                 key={idx}
-                className="p-4 bg-blue-50/50 rounded-xl border border-blue-100"
+                className="p-4 bg-black rounded-xl border border-slate-700"
               >
                 <div className="flex justify-between items-start mb-2">
-                  <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">
+                  <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">
                     {scenario.entryDate} → {scenario.exitDate}
                   </span>
                   <div className="text-right">
-                    <span className="block text-sm font-black text-emerald-600">
+                    <span className="block text-sm font-black text-emerald-400">
                       +{scenario.profit?.toFixed(2)}%
                     </span>
-                    <span className="text-[10px] font-bold text-blue-400">
+                    <span className="text-[10px] font-bold text-emerald-300">
                       확률: {scenario.probability}%
                     </span>
                   </div>
                 </div>
-                <div className="text-xs text-slate-600 font-medium">
+                <div className="text-xs text-emerald-300 font-medium">
                   {scenario.description}
                 </div>
-                <div className="mt-2 flex flex-col gap-1 text-[11px] font-mono text-slate-500">
+                <div className="mt-2 flex flex-col gap-1 text-[11px] font-mono text-emerald-300">
                   <div className="flex items-center gap-2">
-                    <span className="w-12 text-slate-400 font-bold">진입</span>
+                    <span className="w-12 text-emerald-200 font-bold">진입</span>
                     <span>Buy @ ${scenario.entryPrice?.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="w-12 text-blue-500 font-bold">기본</span>
+                    <span className="w-12 text-emerald-200 font-bold">기본</span>
                     <span>Sell @ ${scenario.exitPrice?.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="w-12 text-red-500 font-bold">확장</span>
+                    <span className="w-12 text-emerald-200 font-bold">확장</span>
                     <span>
                       Sell @ ${scenario.extensionPrice?.toFixed(2)}
                       (조건부)
@@ -985,12 +985,12 @@ const App: React.FC = () => {
             )}
 
             {/* Swing Probability Methodology */}
-            <div className="mt-6 pt-6 border-t border-slate-100">
-              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <div className="mt-6 pt-6 border-t border-slate-700">
+              <h4 className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest mb-3 flex items-center gap-2">
                 <Info className="w-3 h-3" /> 시나리오 확률 산출 로직
               </h4>
-              <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                <code className="text-[9px] block text-slate-500 leading-relaxed font-mono">
+              <div className="bg-black p-3 rounded-xl border border-slate-700">
+                <code className="text-[9px] block text-emerald-300 leading-relaxed font-mono">
                   Score = 55% (Base)
                   <br />
                   + ΔSentiment * 0.4 (심리 개선도)
@@ -2177,33 +2177,33 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      <section className="mt-12 mb-8 p-8 border-2 border-dashed border-blue-100 rounded-3xl bg-blue-50/30 text-center">
+      <section className="mt-12 mb-8 p-8 border-2 border-slate-700 rounded-3xl bg-black text-center">
         <div className="max-w-md mx-auto">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full mb-4">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-slate-900 rounded-full mb-4 border border-slate-700">
             <span className="text-2xl">☕</span>
           </div>
-          <h2 className="text-xl font-bold text-slate-800 mb-2">
+          <h2 className="text-xl font-bold text-emerald-400 mb-2">
             커피 한 잔 선물하기
           </h2>
-          <h3>버그 및 피드백: uuuu66@naver.com</h3>
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-100 mt-4">
+          <h3 className="text-emerald-300">버그 및 피드백: uuuu66@naver.com</h3>
+          <div className="bg-black p-4 rounded-2xl border border-slate-700 mt-4">
             <button
               onClick={() => copyToClipboard("110-417-247456")}
-              className="w-full flex justify-between items-center p-3 bg-slate-50 rounded-xl hover:bg-blue-50 transition-colors group relative"
+              className="w-full flex justify-between items-center p-3 bg-black rounded-xl hover:bg-slate-900 transition-colors group relative border border-slate-700"
             >
-              <span className="text-sm font-semibold text-slate-500">
+              <span className="text-sm font-semibold text-emerald-300">
                 신한은행
               </span>
-              <span className="text-sm font-black text-slate-800 select-all">
+              <span className="text-sm font-black text-emerald-400 select-all">
                 110-417-247456
               </span>
               {copySuccess && (
-                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-3 py-1.5 rounded-lg animate-bounce">
+                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black text-emerald-200 text-[10px] px-3 py-1.5 rounded-lg animate-bounce border border-slate-700">
                   복사되었습니다!
                 </div>
               )}
             </button>
-            <p className="text-[10px] text-slate-400 mt-3 font-bold uppercase tracking-wider">
+            <p className="text-[10px] text-emerald-300 mt-3 font-bold uppercase tracking-wider">
               예금주: 이민기 (클릭 시 복사)
             </p>
           </div>
