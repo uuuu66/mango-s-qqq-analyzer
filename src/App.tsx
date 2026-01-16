@@ -1098,7 +1098,7 @@ const App: React.FC = () => {
                       fontSize: "12px",
                       padding: "12px",
                     }}
-                    formatter={(value: string | number | undefined, name: string) => {
+                    formatter={(value: any, name: any) => {
                       if (name === "VIX") {
                         return [
                           value !== undefined && value !== null
