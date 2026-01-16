@@ -17,7 +17,7 @@ import {
   type ProcessedOption,
   type PriceProbability,
   type Recommendation,
-} from "../api/analysis/metrics.ts";
+} from "../api/analysis/metrics.js";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -113,7 +113,9 @@ const parseArgs = () => {
   };
 };
 
-const buildQuotes = (quotes: { date: Date; close?: number; adjclose?: number }[]): QuotePoint[] => {
+const buildQuotes = (
+  quotes: { date: Date; close?: number | null; adjclose?: number | null }[]
+): QuotePoint[] => {
   return quotes
     .map((q) => ({
       date: dayjs(q.date).utc().format("YYYY-MM-DD"),

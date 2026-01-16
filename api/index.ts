@@ -15,7 +15,7 @@ import {
   VOLATILITY_TRIGGER_RATIO,
   type OptionDataInput,
   type ProcessedOption,
-} from "./analysis/metrics.ts";
+} from "./analysis/metrics.js";
 
 // dayjs 설정 (ESM/CJS 호환성을 위해 .js 확장자 명시 권장되는 경우 대응)
 dayjs.extend(utc);
