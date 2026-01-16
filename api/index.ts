@@ -336,7 +336,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       );
     }
 
-    // VIX 지수 데이터 가져오기
+    // VIX 지수 데이터 가져오기 (현재값만, 각 만기일별로는 나중에 계산)
     let currentVix: number | null = null;
     try {
       const vixQuote = await yahooFinance.quote("^VIX");
@@ -350,6 +350,32 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     } catch (error) {
       addLog(
         `[Warning] VIX quote failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+
+    // ✅ VIX 히스토리 데이터 가져오기 (과거 날짜용)
+    const vixHistoryMap = new Map<string, number>();
+    try {
+      const vixChart = await yahooFinance.chart("^VIX", {
+        period1: now.subtract(60, "day").format("YYYY-MM-DD"),
+        period2: now.format("YYYY-MM-DD"),
+        interval: "1d",
+      });
+      if (vixChart.quotes) {
+        vixChart.quotes.forEach((q) => {
+          const dateStr = dayjs(q.date).format("YYYY-MM-DD");
+          const vixValue = q.close ?? q.adjclose ?? null;
+          if (vixValue !== null) {
+            vixHistoryMap.set(dateStr, vixValue);
+          }
+        });
+        addLog(`VIX 히스토리: ${vixHistoryMap.size}일치 데이터 로드`);
+      }
+    } catch (error) {
+      addLog(
+        `[Warning] VIX history failed: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
@@ -1127,31 +1153,50 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       marketRegime: currentPrice > globalGammaFlip ? "Stabilizing" : "Volatile",
       gammaFlip: globalGammaFlip, // ✅ 통합 글로벌 플립 적용
       volTrigger: globalVolTrigger, // ✅ 통합 글로벌 트리거 적용
-      timeSeries: validResults.map((result) => ({
-        date: result.date,
-        isoDate: result.isoDate,
-        callResistance: result.callResistance,
-        putSupport: result.putSupport,
-        callWallOI: result.callWallOI,
-        putWallOI: result.putWallOI,
-        gammaFlip: result.gammaFlip,
-        volTrigger: result.volTrigger,
-        callGex: result.callGex,
-        putGex: result.putGex,
-        totalGex: result.totalGex,
-        pcrAll: result.pcrAll,
-        pcrFiltered: result.pcrFiltered,
-        sentiment: result.sentiment,
-        profitPotential: result.profitPotential,
-        expectedPrice: result.expectedPrice,
-        priceProbability: result.priceProbability,
-        expectedUpper: result.expectedUpper,
-        expectedLower: result.expectedLower,
-        vix: currentVix, // VIX 지수 추가
-        trapWarning: result.trapWarning, // 트랩 경고 추가
-        oiChange: result.oiChange, // 전일 대비 OI 변화율
-        volumeOIRatio: result.volumeOIRatio, // Volume/OI 비율
-      })),
+      timeSeries: validResults.map((result) => {
+        // ✅ 각 만기일 날짜에 해당하는 VIX 가져오기
+        const expDateStr = dayjs(result.isoDate).format("YYYY-MM-DD");
+        const todayStr = now.format("YYYY-MM-DD");
+        
+        let vixForDate: number | null = null;
+        
+        // 만기일이 오늘 이전이면 해당 날짜의 VIX 사용
+        if (expDateStr < todayStr) {
+          vixForDate = vixHistoryMap.get(expDateStr) ?? null;
+        } else if (expDateStr === todayStr) {
+          // 오늘이면 현재 VIX 사용
+          vixForDate = currentVix;
+        } else {
+          // 미래 날짜면 null (VIX는 미래를 알 수 없음)
+          vixForDate = null;
+        }
+        
+        return {
+          date: result.date,
+          isoDate: result.isoDate,
+          callResistance: result.callResistance,
+          putSupport: result.putSupport,
+          callWallOI: result.callWallOI,
+          putWallOI: result.putWallOI,
+          gammaFlip: result.gammaFlip,
+          volTrigger: result.volTrigger,
+          callGex: result.callGex,
+          putGex: result.putGex,
+          totalGex: result.totalGex,
+          pcrAll: result.pcrAll,
+          pcrFiltered: result.pcrFiltered,
+          sentiment: result.sentiment,
+          profitPotential: result.profitPotential,
+          expectedPrice: result.expectedPrice,
+          priceProbability: result.priceProbability,
+          expectedUpper: result.expectedUpper,
+          expectedLower: result.expectedLower,
+          vix: vixForDate, // 각 만기일 날짜에 해당하는 VIX
+          trapWarning: result.trapWarning, // 트랩 경고 추가
+          oiChange: result.oiChange, // 전일 대비 OI 변화율
+          volumeOIRatio: result.volumeOIRatio, // Volume/OI 비율
+        };
+      }),
       ibZone: ibHigh && ibLow ? { high: ibHigh, low: ibLow } : null, // IB 영역
       callResistance: aggResistance,
       putSupport: aggSupport,

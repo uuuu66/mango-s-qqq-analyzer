@@ -672,91 +672,136 @@ const App: React.FC = () => {
                 <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-600 font-bold">Call Wall (저항):</span>
+                      <span className="text-slate-600 font-bold">
+                        Call Wall (저항):
+                      </span>
                       <span className="font-mono font-black text-red-600">
                         ${data.timeSeries[0].callResistance.toFixed(2)}
                         {data.timeSeries[0].callWallOI && (
                           <span className="ml-2 text-slate-500 font-normal">
-                            (OI: {data.timeSeries[0].callWallOI.toLocaleString()})
+                            (OI:{" "}
+                            {data.timeSeries[0].callWallOI.toLocaleString()})
                           </span>
                         )}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-600 font-bold">Put Wall (지지):</span>
+                      <span className="text-slate-600 font-bold">
+                        Put Wall (지지):
+                      </span>
                       <span className="font-mono font-black text-blue-600">
                         ${data.timeSeries[0].putSupport.toFixed(2)}
                         {data.timeSeries[0].putWallOI && (
                           <span className="ml-2 text-slate-500 font-normal">
-                            (OI: {data.timeSeries[0].putWallOI.toLocaleString()})
+                            (OI: {data.timeSeries[0].putWallOI.toLocaleString()}
+                            )
                           </span>
                         )}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-600 font-bold">Gamma Flip:</span>
+                      <span className="text-slate-600 font-bold">
+                        Gamma Flip:
+                      </span>
                       <span className="font-mono font-black text-purple-600">
                         ${data.timeSeries[0].gammaFlip.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-600 font-bold">PCR (Filtered):</span>
+                      <span className="text-slate-600 font-bold">
+                        PCR (Filtered):
+                      </span>
                       <span className="font-mono font-black text-indigo-600">
                         {data.timeSeries[0].pcrFiltered.toFixed(2)}
                       </span>
                     </div>
                   </div>
                   {/* 전일 대비 OI 변화율 및 Volume/OI 비율 */}
-                  {(data.timeSeries[0].oiChange || data.timeSeries[0].volumeOIRatio) && (
+                  {(data.timeSeries[0].oiChange ||
+                    data.timeSeries[0].volumeOIRatio) && (
                     <div className="mt-3 pt-3 border-t border-slate-200">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                        {data.timeSeries[0].oiChange?.callWallOIChange !== null &&
-                          data.timeSeries[0].oiChange?.callWallOIChange !== undefined && (
+                        {data.timeSeries[0].oiChange?.callWallOIChange !==
+                          null &&
+                          data.timeSeries[0].oiChange?.callWallOIChange !==
+                            undefined && (
                             <div className="flex items-center justify-between">
-                              <span className="text-slate-600 font-bold">Call Wall OI 변화:</span>
+                              <span className="text-slate-600 font-bold">
+                                Call Wall OI 변화:
+                              </span>
                               <span
                                 className={`font-mono font-black ${
-                                  (data.timeSeries[0].oiChange?.callWallOIChange || 0) > 0
+                                  (data.timeSeries[0].oiChange
+                                    ?.callWallOIChange || 0) > 0
                                     ? "text-red-600"
                                     : "text-green-600"
                                 }`}
                               >
-                                {data.timeSeries[0].oiChange?.callWallOIChange.toFixed(1)}%
+                                {data.timeSeries[0].oiChange?.callWallOIChange.toFixed(
+                                  1
+                                )}
+                                %
                               </span>
                             </div>
                           )}
-                        {data.timeSeries[0].oiChange?.putWallOIChange !== null &&
-                          data.timeSeries[0].oiChange?.putWallOIChange !== undefined && (
+                        {data.timeSeries[0].oiChange?.putWallOIChange !==
+                          null &&
+                          data.timeSeries[0].oiChange?.putWallOIChange !==
+                            undefined && (
                             <div className="flex items-center justify-between">
-                              <span className="text-slate-600 font-bold">Put Wall OI 변화:</span>
+                              <span className="text-slate-600 font-bold">
+                                Put Wall OI 변화:
+                              </span>
                               <span
                                 className={`font-mono font-black ${
-                                  (data.timeSeries[0].oiChange?.putWallOIChange || 0) > 0
+                                  (data.timeSeries[0].oiChange
+                                    ?.putWallOIChange || 0) > 0
                                     ? "text-green-600"
                                     : "text-red-600"
                                 }`}
                               >
-                                {data.timeSeries[0].oiChange?.putWallOIChange.toFixed(1)}%
+                                {data.timeSeries[0].oiChange?.putWallOIChange.toFixed(
+                                  1
+                                )}
+                                %
                               </span>
                             </div>
                           )}
                         {data.timeSeries[0].volumeOIRatio && (
                           <>
                             <div className="flex items-center justify-between">
-                              <span className="text-slate-600 font-bold">Call V/OI 비율:</span>
+                              <span className="text-slate-600 font-bold">
+                                Call V/OI 비율:
+                              </span>
                               <span className="font-mono font-black text-orange-600">
-                                {data.timeSeries[0].volumeOIRatio.callWall.toFixed(2)}
+                                {data.timeSeries[0].volumeOIRatio.callWall.toFixed(
+                                  2
+                                )}
                                 <span className="ml-1 text-[10px] text-slate-500">
-                                  ({data.timeSeries[0].volumeOIRatio.callWall > 0.1 ? "신규↑" : "롤오버"})
+                                  (
+                                  {data.timeSeries[0].volumeOIRatio.callWall >
+                                  0.1
+                                    ? "신규↑"
+                                    : "롤오버"}
+                                  )
                                 </span>
                               </span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="text-slate-600 font-bold">Put V/OI 비율:</span>
+                              <span className="text-slate-600 font-bold">
+                                Put V/OI 비율:
+                              </span>
                               <span className="font-mono font-black text-orange-600">
-                                {data.timeSeries[0].volumeOIRatio.putWall.toFixed(2)}
+                                {data.timeSeries[0].volumeOIRatio.putWall.toFixed(
+                                  2
+                                )}
                                 <span className="ml-1 text-[10px] text-slate-500">
-                                  ({data.timeSeries[0].volumeOIRatio.putWall > 0.1 ? "신규↑" : "롤오버"})
+                                  (
+                                  {data.timeSeries[0].volumeOIRatio.putWall >
+                                  0.1
+                                    ? "신규↑"
+                                    : "롤오버"}
+                                  )
                                 </span>
                               </span>
                             </div>
@@ -769,7 +814,9 @@ const App: React.FC = () => {
                   {data?.ibZone && (
                     <div className="mt-3 pt-3 border-t border-slate-200">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-600 font-bold">IB 영역 (장 시작 30분):</span>
+                        <span className="text-slate-600 font-bold">
+                          IB 영역 (장 시작 30분):
+                        </span>
                         <div className="flex items-center gap-3">
                           <span className="font-mono font-black text-green-600">
                             Low: ${data.ibZone.low.toFixed(2)}
@@ -1152,7 +1199,9 @@ const App: React.FC = () => {
             <br />* **풋 에너지(적색):** 마켓 메이커가 풋 옵션을 매수/매도하며
             발생하는 압력입니다. 음수가 클수록 주가 하락 시 변동성이 커질 수
             있습니다.
-            <br />* **VIX 지수(보라색):** 시장의 변동성 지표입니다. VIX가 높을수록 시장 불안이 크며, 초반 30분 트랩 판단 시 참고할 수 있습니다.
+            <br />* **VIX 지수(보라색):** 시장의 변동성 지표입니다. VIX가
+            높을수록 시장 불안이 크며, 초반 30분 트랩 판단 시 참고할 수
+            있습니다.
           </p>
         </section>
       </div>
@@ -2212,6 +2261,35 @@ const App: React.FC = () => {
                     const targetPrice = sellPrice * 0.997;
                     const profit = ((targetPrice - buyPrice) / buyPrice) * 100;
 
+                    // ✅ 스캘핑 확률 계산 (스윙 시나리오와 유사한 로직)
+                    // 기본 확률: 50% (스캘핑은 더 보수적)
+                    // 심리 지수 반영: sentiment가 높을수록 상승 확률 증가
+                    // 가격 확률 반영: up - down 확률 차이
+                    // GEX 추세: 이전 만기일과 비교 (있을 경우)
+                    const baseProb = 50;
+                    const sentimentBonus =
+                      item.sentiment > 0
+                        ? Math.min(item.sentiment * 0.3, 15)
+                        : Math.max(item.sentiment * 0.3, -15);
+                    const priceProbBonus =
+                      (item.priceProbability.up - item.priceProbability.down) *
+                      0.3;
+
+                    // 이전 만기일과 비교 (GEX 추세)
+                    const prevItem =
+                      idx > 0 ? tickerAnalysis.timeSeries?.[idx - 1] : null;
+                    const gexTrend = prevItem
+                      ? item.totalGex > prevItem.totalGex
+                        ? 3
+                        : -3
+                      : 0;
+
+                    let scalpingProb =
+                      baseProb + sentimentBonus + priceProbBonus + gexTrend;
+                    scalpingProb = Math.round(
+                      Math.max(30, Math.min(75, scalpingProb))
+                    );
+
                     return (
                       <div
                         key={idx}
@@ -2256,6 +2334,9 @@ const App: React.FC = () => {
                             {profit <= 0
                               ? "Range-bound"
                               : `+${profit.toFixed(2)}%`}
+                          </div>
+                          <div className="text-[9px] font-bold text-slate-500 mt-1">
+                            확률: {scalpingProb}%
                           </div>
                           {item.expectedPrice && (
                             <div className="text-[10px] font-mono font-black text-indigo-500 mt-1">
