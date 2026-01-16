@@ -2073,8 +2073,20 @@ const App: React.FC = () => {
                     const targetPrice = sellPrice * 0.997;
                     const profit = ((targetPrice - buyPrice) / buyPrice) * 100;
                     const nqRatio = data?.qqqToNasdaqFuturesRatio;
-                    const nqBuy = nqRatio ? buyPrice * nqRatio : null;
-                    const nqTarget = nqRatio ? targetPrice * nqRatio : null;
+                    const qqqSpot = data?.currentPrice;
+                    const tickerSpot = tickerAnalysis.currentPrice;
+                    const beta = tickerAnalysis.beta;
+                    const toQqqFromTicker = (price: number) => {
+                      if (!qqqSpot || !tickerSpot || !beta) return null;
+                      const relMove = price / tickerSpot - 1;
+                      return qqqSpot * (1 + relMove / beta);
+                    };
+                    const qqqAtBuy = toQqqFromTicker(buyPrice);
+                    const qqqAtTarget = toQqqFromTicker(targetPrice);
+                    const nqBuy =
+                      nqRatio && qqqAtBuy ? qqqAtBuy * nqRatio : null;
+                    const nqTarget =
+                      nqRatio && qqqAtTarget ? qqqAtTarget * nqRatio : null;
 
                     return (
                       <div
