@@ -620,6 +620,16 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 )}
+                {data?.timeSeries?.[0]?.trapWarning && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex items-center gap-2 bg-orange-50 px-3 py-1.5 rounded-lg border-2 border-orange-300 animate-pulse">
+                      <AlertTriangle className="w-4 h-4 text-orange-600" />
+                      <span className="text-[11px] font-bold text-orange-800">
+                        {data.timeSeries[0].trapWarning.message}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -657,6 +667,123 @@ const App: React.FC = () => {
               <h2 className="text-xl font-bold text-slate-800">
                 만기일별 지지/저항 및 시장 방어력
               </h2>
+              {/* 매물대 정보 표시 */}
+              {data?.timeSeries?.[0] && (
+                <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600 font-bold">Call Wall (저항):</span>
+                      <span className="font-mono font-black text-red-600">
+                        ${data.timeSeries[0].callResistance.toFixed(2)}
+                        {data.timeSeries[0].callWallOI && (
+                          <span className="ml-2 text-slate-500 font-normal">
+                            (OI: {data.timeSeries[0].callWallOI.toLocaleString()})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600 font-bold">Put Wall (지지):</span>
+                      <span className="font-mono font-black text-blue-600">
+                        ${data.timeSeries[0].putSupport.toFixed(2)}
+                        {data.timeSeries[0].putWallOI && (
+                          <span className="ml-2 text-slate-500 font-normal">
+                            (OI: {data.timeSeries[0].putWallOI.toLocaleString()})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600 font-bold">Gamma Flip:</span>
+                      <span className="font-mono font-black text-purple-600">
+                        ${data.timeSeries[0].gammaFlip.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600 font-bold">PCR (Filtered):</span>
+                      <span className="font-mono font-black text-indigo-600">
+                        {data.timeSeries[0].pcrFiltered.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  {/* 전일 대비 OI 변화율 및 Volume/OI 비율 */}
+                  {(data.timeSeries[0].oiChange || data.timeSeries[0].volumeOIRatio) && (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        {data.timeSeries[0].oiChange?.callWallOIChange !== null &&
+                          data.timeSeries[0].oiChange?.callWallOIChange !== undefined && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-600 font-bold">Call Wall OI 변화:</span>
+                              <span
+                                className={`font-mono font-black ${
+                                  (data.timeSeries[0].oiChange?.callWallOIChange || 0) > 0
+                                    ? "text-red-600"
+                                    : "text-green-600"
+                                }`}
+                              >
+                                {data.timeSeries[0].oiChange?.callWallOIChange.toFixed(1)}%
+                              </span>
+                            </div>
+                          )}
+                        {data.timeSeries[0].oiChange?.putWallOIChange !== null &&
+                          data.timeSeries[0].oiChange?.putWallOIChange !== undefined && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-600 font-bold">Put Wall OI 변화:</span>
+                              <span
+                                className={`font-mono font-black ${
+                                  (data.timeSeries[0].oiChange?.putWallOIChange || 0) > 0
+                                    ? "text-green-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {data.timeSeries[0].oiChange?.putWallOIChange.toFixed(1)}%
+                              </span>
+                            </div>
+                          )}
+                        {data.timeSeries[0].volumeOIRatio && (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-600 font-bold">Call V/OI 비율:</span>
+                              <span className="font-mono font-black text-orange-600">
+                                {data.timeSeries[0].volumeOIRatio.callWall.toFixed(2)}
+                                <span className="ml-1 text-[10px] text-slate-500">
+                                  ({data.timeSeries[0].volumeOIRatio.callWall > 0.1 ? "신규↑" : "롤오버"})
+                                </span>
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-600 font-bold">Put V/OI 비율:</span>
+                              <span className="font-mono font-black text-orange-600">
+                                {data.timeSeries[0].volumeOIRatio.putWall.toFixed(2)}
+                                <span className="ml-1 text-[10px] text-slate-500">
+                                  ({data.timeSeries[0].volumeOIRatio.putWall > 0.1 ? "신규↑" : "롤오버"})
+                                </span>
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {/* IB 영역 표시 */}
+                  {data?.ibZone && (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-600 font-bold">IB 영역 (장 시작 30분):</span>
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono font-black text-green-600">
+                            Low: ${data.ibZone.low.toFixed(2)}
+                          </span>
+                          <span className="text-slate-400">→</span>
+                          <span className="font-mono font-black text-red-600">
+                            High: ${data.ibZone.high.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
                 <p className="flex items-center gap-2 text-xs text-red-600 font-bold">
                   <span className="w-4 h-0 border-t-2 border-dashed border-red-500"></span>
@@ -913,6 +1040,10 @@ const App: React.FC = () => {
                 <span className="w-3 h-3 bg-rose-500 rounded-sm"></span>풋
                 에너지 (하락 압력 / 변동성)
               </p>
+              <p className="flex items-center gap-2 text-xs text-purple-600 font-bold">
+                <span className="w-3 h-3 bg-purple-500 rounded-sm"></span>VIX
+                지수 (변동성 지표)
+              </p>
             </div>
           </div>
 
@@ -935,12 +1066,26 @@ const App: React.FC = () => {
                     padding={{ left: 30, right: 30 }}
                   />
                   <YAxis
+                    yAxisId="left"
                     tick={{ fontSize: 11, fontWeight: 600 }}
                     stroke="#64748b"
                     label={{
                       value: "GEX ($ Billion)",
                       angle: -90,
                       position: "insideLeft",
+                      fontSize: 10,
+                      fontWeight: 700,
+                    }}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fontSize: 11, fontWeight: 600 }}
+                    stroke="#8b5cf6"
+                    label={{
+                      value: "VIX",
+                      angle: 90,
+                      position: "insideRight",
                       fontSize: 10,
                       fontWeight: 700,
                     }}
@@ -953,15 +1098,26 @@ const App: React.FC = () => {
                       fontSize: "12px",
                       padding: "12px",
                     }}
-                    formatter={(value: string | number | undefined) => [
-                      value !== undefined
-                        ? `$${Number(value)?.toFixed(2)}B`
-                        : "0.00B",
-                      "",
-                    ]}
+                    formatter={(value: string | number | undefined, name: string) => {
+                      if (name === "VIX") {
+                        return [
+                          value !== undefined && value !== null
+                            ? `${Number(value)?.toFixed(2)}`
+                            : "N/A",
+                          "VIX",
+                        ];
+                      }
+                      return [
+                        value !== undefined
+                          ? `$${Number(value)?.toFixed(2)}B`
+                          : "0.00B",
+                        name,
+                      ];
+                    }}
                   />
                   <ReferenceLine y={0} stroke="#e2e8f0" />
                   <Bar
+                    yAxisId="left"
                     dataKey={(item) => item.callGex / 1e9}
                     fill="#10b981"
                     name="콜 에너지"
@@ -969,11 +1125,22 @@ const App: React.FC = () => {
                     barSize={30}
                   />
                   <Bar
+                    yAxisId="left"
                     dataKey={(item) => item.putGex / 1e9}
                     fill="#f43f5e"
                     name="풋 에너지"
                     radius={[0, 0, 4, 4]}
                     barSize={30}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="vix"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    dot={{ fill: "#8b5cf6", r: 3 }}
+                    name="VIX"
+                    connectNulls={false}
                   />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -985,6 +1152,7 @@ const App: React.FC = () => {
             <br />* **풋 에너지(적색):** 마켓 메이커가 풋 옵션을 매수/매도하며
             발생하는 압력입니다. 음수가 클수록 주가 하락 시 변동성이 커질 수
             있습니다.
+            <br />* **VIX 지수(보라색):** 시장의 변동성 지표입니다. VIX가 높을수록 시장 불안이 크며, 초반 30분 트랩 판단 시 참고할 수 있습니다.
           </p>
         </section>
       </div>

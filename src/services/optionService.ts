@@ -26,6 +26,8 @@ export interface TimeSeriesData {
   isoDate: string;
   callResistance: number;
   putSupport: number;
+  callWallOI?: number; // Call Wall의 OI
+  putWallOI?: number; // Put Wall의 OI
   gammaFlip: number;
   volTrigger: number;
   callGex: number;
@@ -43,6 +45,29 @@ export interface TimeSeriesData {
   };
   expectedUpper: number;
   expectedLower: number;
+  vix?: number | null; // VIX 지수 추가
+  trapWarning?: {
+    isNearCallWall: boolean;
+    putOIDominance: boolean;
+    message: string;
+  }; // 트랩 경고
+  oiChange?: {
+    callWallOIChange: number | null;
+    putWallOIChange: number | null;
+    totalCallOIChange: number | null;
+    totalPutOIChange: number | null;
+  }; // 전일 대비 OI 변화율
+  volumeOIRatio?: {
+    callWall: number;
+    putWall: number;
+    totalCall: number;
+    totalPut: number;
+  }; // Volume/OI 비율
+}
+
+export interface IBZone {
+  high: number;
+  low: number;
 }
 
 export interface SwingScenario {
@@ -99,6 +124,7 @@ export interface AnalysisResult {
   trendForecast?: TrendForecast[];
   segmentedTrends?: SegmentedTrend[];
   sentimentRoadmap?: SentimentRoadmap[];
+  ibZone?: IBZone | null; // IB 영역 (장 시작 30분 고점/저점)
 }
 
 export interface TickerTimeSeriesData {
