@@ -361,6 +361,9 @@ const App: React.FC = () => {
     text += `==========================================\n\n`;
     text += `[ Summary ]\n`;
     text += `Current Price: $${data.currentPrice?.toFixed(2)}\n`;
+    if (data.nasdaqFuturesPrice && data.qqqToNasdaqFuturesRatio) {
+      text += `NQ Implied: ${data.nasdaqFuturesPrice.toFixed(2)} (x${data.qqqToNasdaqFuturesRatio.toFixed(2)})\n`;
+    }
     text += `Total Net GEX: ${data.totalNetGEX}\n`;
     text += `Market Regime: ${data.marketRegime}\n`;
     text += `Gamma Flip: $${data.gammaFlip?.toFixed(2)}\n`;
@@ -563,7 +566,7 @@ const App: React.FC = () => {
                 30-Day Outlook
               </span>
             </h1>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1.5">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1.5">
               <div className="flex items-center gap-2">
                 <span className="text-slate-500 text-sm font-medium">
                   Price:
@@ -577,6 +580,22 @@ const App: React.FC = () => {
                   </span>
                 )}
               </div>
+                {data?.nasdaqFuturesPrice && data?.qqqToNasdaqFuturesRatio && (
+                  <div className="flex items-center gap-2">
+                    <span className="hidden sm:inline text-slate-300">|</span>
+                    <div className="flex items-center gap-2 bg-emerald-50/50 px-3 py-1 rounded-full border border-emerald-100">
+                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight">
+                        NQ 환산:
+                      </span>
+                      <span className="text-[11px] font-black text-emerald-700">
+                        {data.nasdaqFuturesPrice.toFixed(2)}
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-500">
+                        (×{data.qqqToNasdaqFuturesRatio.toFixed(2)})
+                      </span>
+                    </div>
+                  </div>
+                )}
               {currentStatus && (
                 <div className="flex items-center gap-2">
                   <span className="hidden sm:inline text-slate-300">|</span>

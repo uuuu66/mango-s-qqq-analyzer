@@ -294,6 +294,26 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     diagnostics.currentPrice = currentPrice;
     addLog(`현재가: $${currentPrice.toFixed(2)}`);
 
+    let nasdaqFuturesPrice: number | null = null;
+    let qqqToNasdaqFuturesRatio: number | null = null;
+    try {
+      const nqQuote = await yahooFinance.quote("NQ=F");
+      const nqPrice =
+        nqQuote.regularMarketPrice ?? nqQuote.regularMarketPreviousClose ?? 0;
+      if (nqPrice > 0) {
+        nasdaqFuturesPrice = nqPrice;
+        if (currentPrice > 0) {
+          qqqToNasdaqFuturesRatio = nqPrice / currentPrice;
+        }
+      }
+    } catch (error) {
+      addLog(
+        `[Warning] NQ=F quote failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+
     diagnostics.step = "fetch_expiration_dates";
     addLog("QQQ 옵션 만기일 목록 가져오는 중...");
     const optionChain = await yahooFinance.options("QQQ");
@@ -877,6 +897,8 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     response.json({
       currentPrice,
       dataTimestamp,
+      nasdaqFuturesPrice,
+      qqqToNasdaqFuturesRatio,
       warning:
         Math.abs(aggSupport - aggResistance) < currentPrice * 0.001
           ? "Support/Resistance collapsed. Check IV or Option data availability."

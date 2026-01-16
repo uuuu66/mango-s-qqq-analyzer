@@ -83,6 +83,8 @@ export interface SentimentRoadmap {
 export interface AnalysisResult {
   currentPrice: number;
   dataTimestamp?: string;
+  nasdaqFuturesPrice?: number | null;
+  qqqToNasdaqFuturesRatio?: number | null;
   options: OptionData[];
   timeSeries: TimeSeriesData[];
   callResistance: number;
