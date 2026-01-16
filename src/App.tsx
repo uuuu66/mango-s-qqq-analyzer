@@ -1267,7 +1267,7 @@ const App: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
-        <div className="bg-black p-6 rounded-2xl border border-slate-700">
+        <div className="bg-black p-6 rounded-2xl border border-red-500/50">
           <h3 className="text-lg font-bold text-emerald-400 mb-6 flex items-center gap-2">
             <Zap className="w-5 h-5 text-emerald-400" />
             1일 스캘핑 시나리오 (Daily Scalping)
@@ -1280,16 +1280,24 @@ const App: React.FC = () => {
               const sellPrice = Math.max(rawP1, rawP2);
               const targetPrice = sellPrice * 0.997;
               const profit = ((targetPrice - buyPrice) / buyPrice) * 100;
+              const nqRatio = data?.qqqToNasdaqFuturesRatio;
+              const nqBuy = nqRatio ? buyPrice * nqRatio : null;
+              const nqTarget = nqRatio ? targetPrice * nqRatio : null;
 
               return (
                 <div
                   key={idx}
-                  className="flex items-center justify-between p-4 bg-black rounded-xl border border-slate-700 transition-colors"
+                  className="flex items-center justify-between p-4 bg-black rounded-xl border border-red-500/40 transition-colors"
                 >
                   <div>
                     <div className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest mb-1">
                       {item.date} 단기 타점
                     </div>
+                    {nqBuy && nqTarget && (
+                      <div className="text-[9px] font-mono text-emerald-300 mb-1">
+                        NQ ~ {nqBuy.toFixed(0)} → {nqTarget.toFixed(0)}
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 text-sm">
                       <span className="font-bold text-emerald-400">
                         Buy @ ${buyPrice?.toFixed(2)}
@@ -2064,16 +2072,24 @@ const App: React.FC = () => {
                     // 스캘핑이므로 목표가를 저항선보다 약간 더 보수적으로(99.7%) 잡음
                     const targetPrice = sellPrice * 0.997;
                     const profit = ((targetPrice - buyPrice) / buyPrice) * 100;
+                    const nqRatio = data?.qqqToNasdaqFuturesRatio;
+                    const nqBuy = nqRatio ? buyPrice * nqRatio : null;
+                    const nqTarget = nqRatio ? targetPrice * nqRatio : null;
 
                     return (
                       <div
                         key={idx}
-                        className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100 group hover:border-yellow-200 transition-colors"
+                        className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-red-200 group hover:border-red-300 transition-colors"
                       >
                         <div>
                           <div className="text-[9px] font-bold text-slate-400 mb-1">
                             {item.date} 단기 타점
                           </div>
+                          {nqBuy && nqTarget && (
+                            <div className="text-[9px] font-mono text-slate-400 mb-1">
+                              NQ ~ {nqBuy.toFixed(0)} → {nqTarget.toFixed(0)}
+                            </div>
+                          )}
                           <div className="text-[10px] font-mono flex items-center gap-1.5 mb-2">
                             <span className="text-blue-600 font-bold">
                               Buy @ ${buyPrice.toFixed(2)}
