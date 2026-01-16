@@ -486,12 +486,15 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
         interval: "1m",
       });
       if (chartData.quotes && chartData.quotes.length > 0) {
-        // 장 시작 시간 (9:30 AM ET = 13:30 UTC)
+        // 장 시작 시간 (9:30 AM ET)
         const marketOpen = now.hour(9).minute(30).second(0);
-        const ibEndTime = marketOpen.add(30, "minute");
+        const ibEndTime = marketOpen.add(30, "minute"); // 10:00 AM
         const ibQuotes = chartData.quotes.filter((q) => {
           const quoteTime = dayjs(q.date);
-          return quoteTime.isAfter(marketOpen) && quoteTime.isBefore(ibEndTime);
+          // 9:30 AM 이후부터 10:00 AM까지 포함 (30분간)
+          return (
+            quoteTime.isAfter(marketOpen) || quoteTime.isSame(marketOpen)
+          ) && (quoteTime.isBefore(ibEndTime) || quoteTime.isSame(ibEndTime));
         });
         if (ibQuotes.length > 0) {
           ibHigh = Math.max(...ibQuotes.map((q) => q.high || q.close || 0));
