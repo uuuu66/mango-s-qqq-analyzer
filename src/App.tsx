@@ -265,31 +265,36 @@ const App: React.FC = () => {
         tickerPollingRef.current = null;
       }
     };
-  }, [isMarketOpenNY, loadTickerAnalysis, tickerAnalysis?.symbol, tickerLoading]);
+  }, [
+    isMarketOpenNY,
+    loadTickerAnalysis,
+    tickerAnalysis?.symbol,
+    tickerLoading,
+  ]);
 
   const loadTickerOptionExpirations = useCallback(
     async (symbol: string, type: "weekly" | "monthly") => {
-    setTickerOptionsLoading(true);
-    setTickerOptionsError(null);
-    try {
+      setTickerOptionsLoading(true);
+      setTickerOptionsError(null);
+      try {
         const result = await fetchTickerOptionExpirations(symbol, type);
-      setTickerExpirations(result.expirations);
-      if (result.expirations.length > 0) {
-        setSelectedExpiration(result.expirations[0]);
-      } else {
+        setTickerExpirations(result.expirations);
+        if (result.expirations.length > 0) {
+          setSelectedExpiration(result.expirations[0]);
+        } else {
+          setSelectedExpiration(null);
+          setTickerOptionChain(null);
+        }
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "옵션 만기일 조회 실패";
+        setTickerOptionsError(message);
+        setTickerExpirations([]);
         setSelectedExpiration(null);
         setTickerOptionChain(null);
+      } finally {
+        setTickerOptionsLoading(false);
       }
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "옵션 만기일 조회 실패";
-      setTickerOptionsError(message);
-      setTickerExpirations([]);
-      setSelectedExpiration(null);
-      setTickerOptionChain(null);
-    } finally {
-      setTickerOptionsLoading(false);
-    }
     },
     []
   );
@@ -370,11 +375,11 @@ const App: React.FC = () => {
     text += `[ Market Sentiment & Trend ]\n`;
     text += `Date\tExpected\tPCR(All)\tPCR(Filtered)\tSentiment Score\tMax Profit Range\tUp/Down/Neutral Prob\n`;
     data.timeSeries.forEach((item) => {
-      text += `${item.date}\t$${item.expectedPrice?.toFixed(2)}\t${item.pcrAll.toFixed(
+      text += `${item.date}\t$${item.expectedPrice?.toFixed(
         2
-      )}\t${item.pcrFiltered?.toFixed(2)}\t${item.sentiment.toFixed(
-        1
-      )}\t${item.profitPotential?.toFixed(2)}%\t${
+      )}\t${item.pcrAll.toFixed(2)}\t${item.pcrFiltered?.toFixed(
+        2
+      )}\t${item.sentiment.toFixed(1)}\t${item.profitPotential?.toFixed(2)}%\t${
         item.priceProbability?.up ?? 0
       }%/${item.priceProbability?.down ?? 0}%/${
         item.priceProbability?.neutral ?? 0
@@ -418,7 +423,9 @@ const App: React.FC = () => {
     if (data.sentimentRoadmap && data.sentimentRoadmap.length > 0) {
       text += `[ Sentiment Roadmap ]\n`;
       data.sentimentRoadmap.forEach((s) => {
-        text += `- ${s.date} (${s.timeLabel}): Sentiment ${s.sentiment.toFixed(1)} (${s.label})\n`;
+        text += `- ${s.date} (${s.timeLabel}): Sentiment ${s.sentiment.toFixed(
+          1
+        )} (${s.label})\n`;
       });
       text += `\n`;
     }
@@ -463,9 +470,9 @@ const App: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `qqq-yahoo-raw-${new Date()
-        .toISOString()
-        .split("T")[0]}.txt`;
+      link.download = `qqq-yahoo-raw-${
+        new Date().toISOString().split("T")[0]
+      }.txt`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1008,15 +1015,21 @@ const App: React.FC = () => {
                 </div>
                 <div className="mt-2 flex flex-col gap-1 text-[11px] font-mono text-emerald-300">
                   <div className="flex items-center gap-2">
-                    <span className="w-12 text-emerald-200 font-bold">진입</span>
+                    <span className="w-12 text-emerald-200 font-bold">
+                      진입
+                    </span>
                     <span>Buy @ ${scenario.entryPrice?.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="w-12 text-emerald-200 font-bold">기본</span>
+                    <span className="w-12 text-emerald-200 font-bold">
+                      기본
+                    </span>
                     <span>Sell @ ${scenario.exitPrice?.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="w-12 text-emerald-200 font-bold">확장</span>
+                    <span className="w-12 text-emerald-200 font-bold">
+                      확장
+                    </span>
                     <span>
                       Sell @ ${scenario.extensionPrice?.toFixed(2)}
                       (조건부)
@@ -1124,7 +1137,8 @@ const App: React.FC = () => {
                             {trend.startDate} ~ {trend.endDate}
                           </span>
                           <span className="text-[10px] text-slate-400 font-medium">
-                            ${trend.startPrice?.toFixed(2)} → ${trend.endPrice?.toFixed(2)}
+                            ${trend.startPrice?.toFixed(2)} → $
+                            {trend.endPrice?.toFixed(2)}
                           </span>
                         </div>
                         <span
@@ -1239,7 +1253,7 @@ const App: React.FC = () => {
               const rawP2 = Math.min(item.callResistance, item.expectedUpper);
               const buyPrice = Math.min(rawP1, rawP2);
               const sellPrice = Math.max(rawP1, rawP2);
-              const targetPrice = sellPrice * 0.997; 
+              const targetPrice = sellPrice * 0.997;
               const profit = ((targetPrice - buyPrice) / buyPrice) * 100;
 
               return (
@@ -1292,9 +1306,9 @@ const App: React.FC = () => {
             })}
           </div>
           <p className="text-[11px] text-slate-400 mt-4 leading-relaxed">
-            * 5일간의 데이터를 바탕으로 도출된 1일 단위 단기 매매 시나리오입니다.
-            표준편차(0.25-SD) 범위 내에서 매물대 하단 매수, 상단 매도 전략을
-            권장합니다.
+            * 5일간의 데이터를 바탕으로 도출된 1일 단위 단기 매매
+            시나리오입니다. 표준편차(0.25-SD) 범위 내에서 매물대 하단 매수, 상단
+            매도 전략을 권장합니다.
           </p>
         </div>
 
@@ -1445,780 +1459,823 @@ const App: React.FC = () => {
 
               <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-                <div>
-                  <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-50 tracking-tight">
-                    {tickerAnalysis.symbol}
-                  </h3>
-                  <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">
-                    Beta-Adjusted Analysis
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-mono font-black text-slate-900 dark:text-slate-50">
-                    ${tickerAnalysis.currentPrice?.toFixed(2)}
-                  </div>
-                  <div
-                    className={`text-sm font-bold ${
-                      tickerAnalysis.changePercent >= 0
-                        ? "text-emerald-500"
-                        : "text-red-500"
-                    }`}
-                  >
-                    {tickerAnalysis.changePercent >= 0 ? "+" : ""}
-                    {tickerAnalysis.changePercent?.toFixed(2)}%
-                  </div>
-                </div>
-              </div>
-
-              {tickerAnalysis.expectedPrice && (
-                <div className="mb-6 p-4 md:p-6 bg-blue-600 rounded-2xl text-white">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <div className="text-[10px] font-bold text-blue-100 uppercase tracking-widest mb-1">
-                        오늘의 예상 종가 (Target)
-                      </div>
-                      <div className="text-3xl md:text-4xl font-mono font-black">
-                        ${tickerAnalysis.expectedPrice.toFixed(2)}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs font-bold text-blue-100">
-                        현재가 대비
-                      </div>
-                      <div className="text-xl font-black">
-                        {((tickerAnalysis.expectedPrice / tickerAnalysis.currentPrice - 1) * 100).toFixed(2)}%
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* 하방 지지선 그룹 */}
-                <div className="space-y-4">
-                  <div className="p-4 bg-slate-100/50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
-                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-                      최저 위험선 (Extreme Risk)
-                    </div>
-                    <div className="text-2xl font-mono font-black text-slate-700 dark:text-slate-100">
-                      ${tickerAnalysis.expectedMin?.toFixed(2)}
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 font-medium">
-                      QQQ가 ${data?.recommendations[0].max?.toFixed(2)}까지
-                      폭락할 때
+                  <div>
+                    <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-50 tracking-tight">
+                      {tickerAnalysis.symbol}
+                    </h3>
+                    <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">
+                      Beta-Adjusted Analysis
                     </p>
                   </div>
-
-                  <div className="p-4 bg-blue-50/70 dark:bg-blue-950/40 rounded-2xl border border-blue-100 dark:border-blue-900/60">
-                    <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">
-                      예상 지지선 (Support)
+                  <div className="text-right">
+                    <div className="text-2xl font-mono font-black text-slate-900 dark:text-slate-50">
+                      ${tickerAnalysis.currentPrice?.toFixed(2)}
                     </div>
-                    <div className="text-2xl font-mono font-black text-blue-900 dark:text-blue-100">
-                      ${tickerAnalysis.expectedSupport?.toFixed(2)}
-                    </div>
-                    <p className="text-[11px] text-blue-600/70 dark:text-blue-200 mt-2 font-medium">
-                      QQQ가 ${data?.putSupport?.toFixed(2)}까지 밀릴 때
-                    </p>
-                  </div>
-                </div>
-
-                {/* 상방 저항선 그룹 */}
-                <div className="space-y-4">
-                  <div className="p-4 bg-red-50/70 dark:bg-red-950/40 rounded-2xl border border-red-100 dark:border-red-900/60">
-                    <div className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-2">
-                      예상 저항선 (Resistance)
-                    </div>
-                    <div className="text-2xl font-mono font-black text-red-900 dark:text-red-100">
-                      ${tickerAnalysis.expectedResistance?.toFixed(2)}
-                    </div>
-                    <p className="text-[11px] text-red-600/70 dark:text-red-200 mt-2 font-medium">
-                      QQQ가 ${data?.callResistance?.toFixed(2)}까지 오를 때
-                    </p>
-                  </div>
-
-                  <div className="p-4 bg-orange-50/70 dark:bg-orange-950/40 rounded-2xl border border-orange-100 dark:border-orange-900/60">
-                    <div className="text-[10px] font-bold text-orange-500 uppercase tracking-widest mb-2">
-                      최대 목표선 (Strong Sell)
-                    </div>
-                    <div className="text-2xl font-mono font-black text-orange-900 dark:text-orange-100">
-                      ${tickerAnalysis.expectedMax?.toFixed(2)}
-                    </div>
-                    <p className="text-[11px] text-orange-600/70 dark:text-orange-200 mt-2 font-medium">
-                      QQQ가 ${data?.recommendations[5].max?.toFixed(2)}까지
-                      과열될 때
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">
-                  적용 베타 ($\beta$)
-                </span>
-                <div className="flex flex-col items-end">
-                  <span className="font-mono font-bold text-slate-700 dark:text-slate-100 bg-white dark:bg-slate-950 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                    {tickerAnalysis.beta?.toFixed(2)}
-                  </span>
-                  <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
-                    *최근{" "}
-                    {betaPeriod >= 12
-                      ? `${betaPeriod / 12}년`
-                      : `${betaPeriod}개월`}{" "}
-                    일일 수익률 기반 정밀 계산
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-8 pt-6 border-t border-slate-100">
-                <div className="flex items-center justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                      <Zap className="w-3.5 h-3.5 text-indigo-500" />
-                      {tickerAnalysis.symbol} 옵션 만기별 분석
-                    </h4>
-                    <div className="flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setExpirationType("weekly")}
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-colors ${
-                          expirationType === "weekly"
-                            ? "bg-indigo-500 text-white"
-                            : "text-slate-500 hover:text-indigo-600"
-                        }`}
-                      >
-                        Weekly
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setExpirationType("monthly")}
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-colors ${
-                          expirationType === "monthly"
-                            ? "bg-indigo-500 text-white"
-                            : "text-slate-500 hover:text-indigo-600"
-                        }`}
-                      >
-                        Monthly
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                    <a
-                      href={`https://optioncharts.io/options/${tickerAnalysis.symbol}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-indigo-500 hover:text-indigo-600"
-                    >
-                      OptionCharts 보기
-                    </a>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {tickerExpirations.length === 0 && !tickerOptionsLoading && (
-                    <span className="text-xs text-slate-400">
-                      만기일 정보를 불러오지 못했습니다.
-                    </span>
-                  )}
-                  {tickerExpirations.map((exp) => (
-                    <button
-                      key={exp}
-                      onClick={() => setSelectedExpiration(exp)}
-                      className={`px-3 py-1.5 rounded-full text-[11px] font-black border transition-colors ${
-                        selectedExpiration === exp
-                          ? "bg-indigo-500 text-white border-indigo-500"
-                          : "bg-white text-slate-500 border-slate-200 hover:border-indigo-200 hover:text-indigo-600"
+                    <div
+                      className={`text-sm font-bold ${
+                        tickerAnalysis.changePercent >= 0
+                          ? "text-emerald-500"
+                          : "text-red-500"
                       }`}
                     >
-                      {exp}
-                    </button>
-                  ))}
+                      {tickerAnalysis.changePercent >= 0 ? "+" : ""}
+                      {tickerAnalysis.changePercent?.toFixed(2)}%
+                    </div>
+                  </div>
                 </div>
 
-                {tickerOptionsLoading && (
-                  <div className="text-xs text-slate-400">
-                    옵션 데이터를 불러오는 중...
-                  </div>
-                )}
-                {tickerOptionsError && (
-                  <div className="text-xs text-red-500">{tickerOptionsError}</div>
-                )}
-
-                {tickerOptionChain && (
-                  <div className="space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4">
+                {tickerAnalysis.expectedPrice && (
+                  <div className="mb-6 p-4 md:p-6 bg-blue-600 rounded-2xl text-white">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                          만기일
+                        <div className="text-[10px] font-bold text-blue-100 uppercase tracking-widest mb-1">
+                          오늘의 예상 종가 (Target)
                         </div>
-                        <div className="text-lg font-black text-slate-800">
-                          {tickerOptionChain.expirationDate}
-                        </div>
-                      </div>
-                      <div className="text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        <a
-                          href={tickerOptionChain.links.expiration}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-indigo-500 hover:text-indigo-600"
-                        >
-                          OptionCharts 만기별 보기
-                        </a>
-                      </div>
-                    </div>
-
-                    {selectedTickerRange && selectedTickerTarget && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div className="p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/50">
-                          <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-1">
-                            예상 종가 (Target)
-                          </div>
-                          <div className="text-xl font-black text-indigo-700">
-                            ${selectedTickerTarget.toFixed(2)}
-                          </div>
-                          <div className="text-[10px] text-indigo-400 mt-1">
-                            {selectedExpiration} 기준
-                          </div>
-                        </div>
-                        <div className="p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/40">
-                          <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">
-                            예상 지지선
-                          </div>
-                          <div className="text-xl font-black text-emerald-700">
-                            ${selectedTickerRange.expectedSupport.toFixed(2)}
-                          </div>
-                          <div className="text-[10px] text-emerald-400 mt-1">
-                            강한 하단 범위
-                          </div>
-                        </div>
-                        <div className="p-4 rounded-2xl border border-rose-100 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/40">
-                          <div className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-1">
-                            예상 저항선
-                          </div>
-                          <div className="text-xl font-black text-rose-700">
-                            ${selectedTickerRange.expectedResistance.toFixed(2)}
-                          </div>
-                          <div className="text-[10px] text-rose-400 mt-1">
-                            강한 상단 범위
-                          </div>
+                        <div className="text-3xl md:text-4xl font-mono font-black">
+                          ${tickerAnalysis.expectedPrice.toFixed(2)}
                         </div>
                       </div>
-                    )}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                          Put/Call Ratio
+                      <div className="text-right">
+                        <div className="text-xs font-bold text-blue-100">
+                          현재가 대비
                         </div>
-                        <div className="text-xl font-black text-slate-700">
-                          {tickerOptionChain.summary.pcr.toFixed(2)}
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                          Call Wall
-                        </div>
-                        <div className="text-xl font-black text-emerald-600">
-                          {tickerOptionChain.summary.callWall
-                            ? `$${tickerOptionChain.summary.callWall.toFixed(2)}`
-                            : "-"}
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                          Put Wall
-                        </div>
-                        <div className="text-xl font-black text-red-500">
-                          {tickerOptionChain.summary.putWall
-                            ? `$${tickerOptionChain.summary.putWall.toFixed(2)}`
-                            : "-"}
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                          Avg IV (ATM)
-                        </div>
-                        <div className="text-xl font-black text-slate-700">
-                          {tickerOptionChain.summary.avgIv
-                            ? `${(tickerOptionChain.summary.avgIv * 100).toFixed(
-                                1
-                              )}%`
-                            : "-"}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
-                        <div className="px-4 py-3 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-200 text-xs font-bold uppercase tracking-widest">
-                          Calls (Top OI)
-                        </div>
-                        <div className="max-h-[320px] overflow-y-auto">
-                          <table className="w-full text-[11px]">
-                            <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
-                              <tr>
-                                <th className="px-4 py-2 text-left">Strike</th>
-                                <th className="px-4 py-2 text-right">Last</th>
-                                <th className="px-4 py-2 text-right">OI</th>
-                                <th className="px-4 py-2 text-right">IV</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {tickerOptionChain.calls
-                                .slice()
-                                .sort((a, b) => b.openInterest - a.openInterest)
-                                .slice(0, 12)
-                                .map((opt, idx) => (
-                                  <tr
-                                    key={`${opt.strike}-${idx}`}
-                                    className="border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-200"
-                                  >
-                                    <td className="px-4 py-2 font-mono">
-                                      ${opt.strike.toFixed(2)}
-                                    </td>
-                                    <td className="px-4 py-2 text-right font-mono">
-                                      ${opt.lastPrice.toFixed(2)}
-                                    </td>
-                                    <td className="px-4 py-2 text-right font-mono">
-                                      {opt.openInterest.toLocaleString()}
-                                    </td>
-                                    <td className="px-4 py-2 text-right font-mono">
-                                      {(opt.impliedVolatility * 100).toFixed(1)}%
-                                    </td>
-                                  </tr>
-                                ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
-                        <div className="px-4 py-3 bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-200 text-xs font-bold uppercase tracking-widest">
-                          Puts (Top OI)
-                        </div>
-                        <div className="max-h-[320px] overflow-y-auto">
-                          <table className="w-full text-[11px]">
-                            <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
-                              <tr>
-                                <th className="px-4 py-2 text-left">Strike</th>
-                                <th className="px-4 py-2 text-right">Last</th>
-                                <th className="px-4 py-2 text-right">OI</th>
-                                <th className="px-4 py-2 text-right">IV</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {tickerOptionChain.puts
-                                .slice()
-                                .sort((a, b) => b.openInterest - a.openInterest)
-                                .slice(0, 12)
-                                .map((opt, idx) => (
-                                  <tr
-                                    key={`${opt.strike}-${idx}`}
-                                    className="border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-200"
-                                  >
-                                    <td className="px-4 py-2 font-mono">
-                                      ${opt.strike.toFixed(2)}
-                                    </td>
-                                    <td className="px-4 py-2 text-right font-mono">
-                                      ${opt.lastPrice.toFixed(2)}
-                                    </td>
-                                    <td className="px-4 py-2 text-right font-mono">
-                                      {opt.openInterest.toLocaleString()}
-                                    </td>
-                                    <td className="px-4 py-2 text-right font-mono">
-                                      {(opt.impliedVolatility * 100).toFixed(1)}%
-                                    </td>
-                                  </tr>
-                                ))}
-                            </tbody>
-                          </table>
+                        <div className="text-xl font-black">
+                          {(
+                            (tickerAnalysis.expectedPrice /
+                              tickerAnalysis.currentPrice -
+                              1) *
+                            100
+                          ).toFixed(2)}
+                          %
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
-              </div>
 
-              {/* Ticker Swing Scenarios */}
-              {tickerAnalysis.swingScenarios &&
-                tickerAnalysis.swingScenarios.length > 0 && (
-                  <div className="mt-8 pt-6 border-t border-slate-100">
-                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <TrendingUp className="w-3.5 h-3.5" />{" "}
-                      {tickerAnalysis.symbol} 베타 보정 스윙 시나리오
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {tickerAnalysis.swingScenarios.map((scenario, idx) => (
-                        <div
-                          key={idx}
-                          className="p-4 bg-slate-50 rounded-2xl border border-slate-100"
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                              {scenario.entryDate} → {scenario.exitDate}
-                            </span>
-                            <div className="text-right">
-                              <span className="block text-sm font-black text-emerald-600">
-                                +{scenario.profit?.toFixed(2)}%
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-[11px] text-slate-600 font-medium mb-3">
-                            {scenario.description}
-                          </div>
-                          <div className="space-y-1.5 text-[10px] font-mono">
-                            <div className="flex justify-between items-center text-slate-500">
-                              <span>진입가</span>
-                              <span className="font-bold text-slate-700">
-                                ${scenario.entryPrice?.toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center text-blue-500">
-                              <span>기본 목표</span>
-                              <span className="font-bold text-blue-700">
-                                ${scenario.exitPrice?.toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center text-red-500">
-                              <span>확장 목표</span>
-                              <span className="font-bold text-red-700">
-                                ${scenario.extensionPrice?.toFixed(2)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              {/* ✅ 티커 시장 방향성 및 확률 예측 표시 */}
-              {tickerAnalysis.trendForecast &&
-                tickerAnalysis.trendForecast.length > 0 && (
-                  <div className="mt-8 pt-6 border-t border-slate-100">
-                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                      <TrendingUp className="w-3.5 h-3.5" /> {tickerAnalysis.symbol} 추세 및 확률 예측
-                    </h4>
-                    <div className="space-y-6">
-                      {tickerAnalysis.trendForecast.map((forecast, idx) => (
-                        <div key={idx}>
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-wider ${
-                                  forecast.direction === "상승"
-                                    ? "bg-emerald-500"
-                                    : forecast.direction === "하락"
-                                    ? "bg-red-500"
-                                    : "bg-slate-400"
-                                }`}
-                              >
-                                {forecast.direction}
-                              </div>
-                              <span className="text-[10px] text-slate-400 font-bold font-mono">
-                                {forecast.period}
-                              </span>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest mb-1">
-                                예측 신뢰도
-                              </div>
-                              <div className="text-xl font-black text-indigo-600">
-                                {forecast.probability}%
-                              </div>
-                            </div>
-                          </div>
-                          <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 text-xs text-slate-600 leading-relaxed font-medium">
-                            {forecast.description}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              {/* ✅ 티커 세부 구간별 추세 예측 표시 */}
-              {tickerAnalysis.segmentedTrends &&
-                tickerAnalysis.segmentedTrends.length > 0 && (
-                  <div className="mt-8 pt-6 border-t border-slate-100">
-                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <TrendingUp className="w-3.5 h-3.5" />{" "}
-                      {tickerAnalysis.symbol} 기대 경로 (Segmented Trends)
-                    </h4>
-                    <div className="space-y-3">
-                      {tickerAnalysis.segmentedTrends.map((trend, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-slate-100"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div
-                              className={`w-2.5 h-2.5 rounded-full ${
-                                trend.direction === "상승"
-                                  ? "bg-emerald-500 animate-pulse"
-                                  : trend.direction === "하락"
-                                  ? "bg-red-500"
-                                  : "bg-slate-300"
-                              }`}
-                            />
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-slate-700 font-mono">
-                                {trend.startDate} ~ {trend.endDate}
-                              </span>
-                              <span className="text-[10px] text-slate-400 font-medium">
-                                ${trend.startPrice?.toFixed(2)} → ${trend.endPrice?.toFixed(2)}
-                              </span>
-                            </div>
-                            <span
-                              className={`text-[11px] font-black px-2.5 py-1 rounded-lg uppercase ${
-                                trend.direction === "상승"
-                                  ? "text-emerald-600 bg-emerald-50"
-                                  : trend.direction === "하락"
-                                  ? "text-red-600 bg-red-50"
-                                  : "text-slate-500 bg-slate-100"
-                              }`}
-                            >
-                              {trend.direction}
-                            </span>
-                          </div>
-                          <span className="text-xs text-slate-500 font-medium italic">
-                            {trend.description}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              <div className="mt-8 pt-6 border-t border-slate-100">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <Zap className="w-3.5 h-3.5 text-yellow-500" />{" "}
-                  {tickerAnalysis.symbol} 1일 스캘핑 시나리오
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {tickerAnalysis.timeSeries?.slice(0, 5).map((item, idx) => {
-                    // ✅ 항상 낮은 가격을 buyPrice, 높은 가격을 sellPrice로 설정 (Long 관점 스캘핑)
-                    const rawP1 = Math.max(item.expectedSupport, item.expectedLower);
-                    const rawP2 = Math.min(item.expectedResistance, item.expectedUpper);
-                    
-                    const buyPrice = Math.min(rawP1, rawP2);
-                    const sellPrice = Math.max(rawP1, rawP2);
-                    
-                    // 스캘핑이므로 목표가를 저항선보다 약간 더 보수적으로(99.7%) 잡음
-                    const targetPrice = sellPrice * 0.997; 
-                    const profit = ((targetPrice - buyPrice) / buyPrice) * 100;
-
-                    return (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100 group hover:border-yellow-200 transition-colors"
-                      >
-                        <div>
-                          <div className="text-[9px] font-bold text-slate-400 mb-1">
-                            {item.date} 단기 타점
-                          </div>
-                          <div className="text-[10px] font-mono flex items-center gap-1.5 mb-2">
-                            <span className="text-blue-600 font-bold">
-                              Buy @ ${buyPrice.toFixed(2)}
-                            </span>
-                            <span className="text-slate-300">→</span>
-                            <span className="text-red-600 font-bold">
-                              ${targetPrice.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex gap-1 h-1 w-full max-w-[80px] rounded-full overflow-hidden bg-slate-100">
-                            <div
-                              className="bg-emerald-500"
-                              style={{ width: `${item.priceProbability.up}%` }}
-                            />
-                            <div
-                              className="bg-slate-400"
-                              style={{
-                                width: `${item.priceProbability.neutral}%`,
-                              }}
-                            />
-                            <div
-                              className="bg-red-500"
-                              style={{
-                                width: `${item.priceProbability.down}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-[11px] font-black text-emerald-600">
-                            {profit <= 0
-                              ? "Range-bound"
-                              : `+${profit.toFixed(2)}%`}
-                          </div>
-                          {item.expectedPrice && (
-                            <div className="text-[10px] font-mono font-black text-indigo-500 mt-1">
-                              Target ${item.expectedPrice.toFixed(2)}
-                            </div>
-                          )}
-                        </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* 하방 지지선 그룹 */}
+                  <div className="space-y-4">
+                    <div className="p-4 bg-slate-100/50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
+                        최저 위험선 (Extreme Risk)
                       </div>
-                    );
-                  })}
+                      <div className="text-2xl font-mono font-black text-slate-700 dark:text-slate-100">
+                        ${tickerAnalysis.expectedMin?.toFixed(2)}
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                        QQQ가 ${data?.recommendations[0].max?.toFixed(2)}까지
+                        폭락할 때
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-blue-50/70 dark:bg-blue-950/40 rounded-2xl border border-blue-100 dark:border-blue-900/60">
+                      <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">
+                        예상 지지선 (Support)
+                      </div>
+                      <div className="text-2xl font-mono font-black text-blue-900 dark:text-blue-100">
+                        ${tickerAnalysis.expectedSupport?.toFixed(2)}
+                      </div>
+                      <p className="text-[11px] text-blue-600/70 dark:text-blue-200 mt-2 font-medium">
+                        QQQ가 ${data?.putSupport?.toFixed(2)}까지 밀릴 때
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 상방 저항선 그룹 */}
+                  <div className="space-y-4">
+                    <div className="p-4 bg-red-50/70 dark:bg-red-950/40 rounded-2xl border border-red-100 dark:border-red-900/60">
+                      <div className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-2">
+                        예상 저항선 (Resistance)
+                      </div>
+                      <div className="text-2xl font-mono font-black text-red-900 dark:text-red-100">
+                        ${tickerAnalysis.expectedResistance?.toFixed(2)}
+                      </div>
+                      <p className="text-[11px] text-red-600/70 dark:text-red-200 mt-2 font-medium">
+                        QQQ가 ${data?.callResistance?.toFixed(2)}까지 오를 때
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-orange-50/70 dark:bg-orange-950/40 rounded-2xl border border-orange-100 dark:border-orange-900/60">
+                      <div className="text-[10px] font-bold text-orange-500 uppercase tracking-widest mb-2">
+                        최대 목표선 (Strong Sell)
+                      </div>
+                      <div className="text-2xl font-mono font-black text-orange-900 dark:text-orange-100">
+                        ${tickerAnalysis.expectedMax?.toFixed(2)}
+                      </div>
+                      <p className="text-[11px] text-orange-600/70 dark:text-orange-200 mt-2 font-medium">
+                        QQQ가 ${data?.recommendations[5].max?.toFixed(2)}까지
+                        과열될 때
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="mt-8 pt-6 border-t border-slate-100">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-3.5 h-3.5" /> {tickerAnalysis.symbol}{" "}
-                  만기별 예상 지지/저항
-                </h4>
-                {tickerAnalysis.timeSeries &&
-                tickerAnalysis.timeSeries.length > 0 ? (
-                  <>
-                    <div className="h-[300px] w-full mt-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart
-                          data={tickerAnalysis.timeSeries}
-                          margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-slate-100 dark:border-slate-800">
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">
+                    적용 베타 ($\beta$)
+                  </span>
+                  <div className="flex flex-col items-end">
+                    <span className="font-mono font-bold text-slate-700 dark:text-slate-100 bg-white dark:bg-slate-950 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                      {tickerAnalysis.beta?.toFixed(2)}
+                    </span>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
+                      *최근{" "}
+                      {betaPeriod >= 12
+                        ? `${betaPeriod / 12}년`
+                        : `${betaPeriod}개월`}{" "}
+                      일일 수익률 기반 정밀 계산
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <Zap className="w-3.5 h-3.5 text-indigo-500" />
+                        {tickerAnalysis.symbol} 옵션 만기별 분석
+                      </h4>
+                      <div className="flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setExpirationType("weekly")}
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-colors ${
+                            expirationType === "weekly"
+                              ? "bg-indigo-500 text-white"
+                              : "text-slate-500 hover:text-indigo-600"
+                          }`}
                         >
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            vertical={false}
-                            stroke="#f1f5f9"
-                          />
-                          <XAxis
-                            dataKey="date"
-                            tick={{ fontSize: 10, fontWeight: 600 }}
-                            stroke="#64748b"
-                          />
-                          <YAxis
-                            domain={["auto", "auto"]}
-                            tick={{ fontSize: 10, fontWeight: 600 }}
-                            stroke="#64748b"
-                            label={{
-                              value: "Price ($)",
-                              angle: -90,
-                              position: "insideLeft",
-                              fontSize: 10,
-                              fontWeight: 700,
-                            }}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              borderRadius: "12px",
-                              border: "none",
-                              boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-                              fontSize: "11px",
-                            }}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="expectedPrice"
-                            stroke="#6366f1"
-                            strokeWidth={2}
-                            dot={{ r: 4, fill: "#6366f1" }}
-                            name="예상 종가 (Target)"
-                          />
-                          <Line
-                            type="stepAfter"
-                            dataKey="expectedResistance"
-                            stroke="#ef4444"
-                            strokeDasharray="5 5"
-                            strokeWidth={2}
-                            dot={{ r: 3, fill: "#ef4444" }}
-                            name="예상 저항선"
-                          />
-                          <Line
-                            type="stepAfter"
-                            dataKey="expectedSupport"
-                            stroke="#3b82f6"
-                            strokeDasharray="5 5"
-                            strokeWidth={2}
-                            dot={{ r: 3, fill: "#3b82f6" }}
-                            name="예상 지지선"
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="expectedUpper"
-                            stroke="#10b981"
-                            strokeWidth={1}
-                            strokeDasharray="2 2"
-                            dot={false}
-                            name="0.25-SD 상단"
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="expectedLower"
-                            stroke="#10b981"
-                            strokeWidth={1}
-                            strokeDasharray="2 2"
-                            dot={false}
-                            name="0.25-SD 하단"
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey={() => tickerAnalysis.currentPrice}
-                            stroke="#1e293b"
-                            strokeWidth={1}
-                            dot={false}
-                            strokeOpacity={0.3}
-                            name="현재가"
-                          />
-                        </ComposedChart>
-                      </ResponsiveContainer>
+                          Weekly
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExpirationType("monthly")}
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-colors ${
+                            expirationType === "monthly"
+                              ? "bg-indigo-500 text-white"
+                              : "text-slate-500 hover:text-indigo-600"
+                          }`}
+                        >
+                          Monthly
+                        </button>
+                      </div>
                     </div>
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                      <a
+                        href={`https://optioncharts.io/options/${tickerAnalysis.symbol}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-indigo-500 hover:text-indigo-600"
+                      >
+                        OptionCharts 보기
+                      </a>
+                    </div>
+                  </div>
 
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {tickerExpirations.length === 0 &&
+                      !tickerOptionsLoading && (
+                        <span className="text-xs text-slate-400">
+                          만기일 정보를 불러오지 못했습니다.
+                        </span>
+                      )}
+                    {tickerExpirations.map((exp) => (
+                      <button
+                        key={exp}
+                        onClick={() => setSelectedExpiration(exp)}
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-black border transition-colors ${
+                          selectedExpiration === exp
+                            ? "bg-indigo-500 text-white border-indigo-500"
+                            : "bg-white text-slate-500 border-slate-200 hover:border-indigo-200 hover:text-indigo-600"
+                        }`}
+                      >
+                        {exp}
+                      </button>
+                    ))}
+                  </div>
+
+                  {tickerOptionsLoading && (
+                    <div className="text-xs text-slate-400">
+                      옵션 데이터를 불러오는 중...
+                    </div>
+                  )}
+                  {tickerOptionsError && (
+                    <div className="text-xs text-red-500">
+                      {tickerOptionsError}
+                    </div>
+                  )}
+
+                  {tickerOptionChain && (
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4">
+                        <div>
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            만기일
+                          </div>
+                          <div className="text-lg font-black text-slate-800">
+                            {tickerOptionChain.expirationDate}
+                          </div>
+                        </div>
+                        <div className="text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          <a
+                            href={tickerOptionChain.links.expiration}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-indigo-500 hover:text-indigo-600"
+                          >
+                            OptionCharts 만기별 보기
+                          </a>
+                        </div>
+                      </div>
+
+                      {selectedTickerRange && selectedTickerTarget && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/50">
+                            <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-1">
+                              예상 종가 (Target)
+                            </div>
+                            <div className="text-xl font-black text-indigo-700">
+                              ${selectedTickerTarget.toFixed(2)}
+                            </div>
+                            <div className="text-[10px] text-indigo-400 mt-1">
+                              {selectedExpiration} 기준
+                            </div>
+                          </div>
+                          <div className="p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/40">
+                            <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">
+                              예상 지지선
+                            </div>
+                            <div className="text-xl font-black text-emerald-700">
+                              ${selectedTickerRange.expectedSupport.toFixed(2)}
+                            </div>
+                            <div className="text-[10px] text-emerald-400 mt-1">
+                              강한 하단 범위
+                            </div>
+                          </div>
+                          <div className="p-4 rounded-2xl border border-rose-100 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/40">
+                            <div className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-1">
+                              예상 저항선
+                            </div>
+                            <div className="text-xl font-black text-rose-700">
+                              $
+                              {selectedTickerRange.expectedResistance.toFixed(
+                                2
+                              )}
+                            </div>
+                            <div className="text-[10px] text-rose-400 mt-1">
+                              강한 상단 범위
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                            Put/Call Ratio
+                          </div>
+                          <div className="text-xl font-black text-slate-700">
+                            {tickerOptionChain.summary.pcr.toFixed(2)}
+                          </div>
+                        </div>
+                        <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                            Call Wall
+                          </div>
+                          <div className="text-xl font-black text-emerald-600">
+                            {tickerOptionChain.summary.callWall
+                              ? `$${tickerOptionChain.summary.callWall.toFixed(
+                                  2
+                                )}`
+                              : "-"}
+                          </div>
+                        </div>
+                        <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                            Put Wall
+                          </div>
+                          <div className="text-xl font-black text-red-500">
+                            {tickerOptionChain.summary.putWall
+                              ? `$${tickerOptionChain.summary.putWall.toFixed(
+                                  2
+                                )}`
+                              : "-"}
+                          </div>
+                        </div>
+                        <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                            Avg IV (ATM)
+                          </div>
+                          <div className="text-xl font-black text-slate-700">
+                            {tickerOptionChain.summary.avgIv
+                              ? `${(
+                                  tickerOptionChain.summary.avgIv * 100
+                                ).toFixed(1)}%`
+                              : "-"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                          <div className="px-4 py-3 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-200 text-xs font-bold uppercase tracking-widest">
+                            Calls (Top OI)
+                          </div>
+                          <div className="max-h-[320px] overflow-y-auto">
+                            <table className="w-full text-[11px]">
+                              <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
+                                <tr>
+                                  <th className="px-4 py-2 text-left">
+                                    Strike
+                                  </th>
+                                  <th className="px-4 py-2 text-right">Last</th>
+                                  <th className="px-4 py-2 text-right">OI</th>
+                                  <th className="px-4 py-2 text-right">IV</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {tickerOptionChain.calls
+                                  .slice()
+                                  .sort(
+                                    (a, b) => b.openInterest - a.openInterest
+                                  )
+                                  .slice(0, 12)
+                                  .map((opt, idx) => (
+                                    <tr
+                                      key={`${opt.strike}-${idx}`}
+                                      className="border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-200"
+                                    >
+                                      <td className="px-4 py-2 font-mono">
+                                        ${opt.strike.toFixed(2)}
+                                      </td>
+                                      <td className="px-4 py-2 text-right font-mono">
+                                        ${opt.lastPrice.toFixed(2)}
+                                      </td>
+                                      <td className="px-4 py-2 text-right font-mono">
+                                        {opt.openInterest.toLocaleString()}
+                                      </td>
+                                      <td className="px-4 py-2 text-right font-mono">
+                                        {(opt.impliedVolatility * 100).toFixed(
+                                          1
+                                        )}
+                                        %
+                                      </td>
+                                    </tr>
+                                  ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                          <div className="px-4 py-3 bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-200 text-xs font-bold uppercase tracking-widest">
+                            Puts (Top OI)
+                          </div>
+                          <div className="max-h-[320px] overflow-y-auto">
+                            <table className="w-full text-[11px]">
+                              <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
+                                <tr>
+                                  <th className="px-4 py-2 text-left">
+                                    Strike
+                                  </th>
+                                  <th className="px-4 py-2 text-right">Last</th>
+                                  <th className="px-4 py-2 text-right">OI</th>
+                                  <th className="px-4 py-2 text-right">IV</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {tickerOptionChain.puts
+                                  .slice()
+                                  .sort(
+                                    (a, b) => b.openInterest - a.openInterest
+                                  )
+                                  .slice(0, 12)
+                                  .map((opt, idx) => (
+                                    <tr
+                                      key={`${opt.strike}-${idx}`}
+                                      className="border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-200"
+                                    >
+                                      <td className="px-4 py-2 font-mono">
+                                        ${opt.strike.toFixed(2)}
+                                      </td>
+                                      <td className="px-4 py-2 text-right font-mono">
+                                        ${opt.lastPrice.toFixed(2)}
+                                      </td>
+                                      <td className="px-4 py-2 text-right font-mono">
+                                        {opt.openInterest.toLocaleString()}
+                                      </td>
+                                      <td className="px-4 py-2 text-right font-mono">
+                                        {(opt.impliedVolatility * 100).toFixed(
+                                          1
+                                        )}
+                                        %
+                                      </td>
+                                    </tr>
+                                  ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Ticker Swing Scenarios */}
+                {tickerAnalysis.swingScenarios &&
+                  tickerAnalysis.swingScenarios.length > 0 && (
                     <div className="mt-8 pt-6 border-t border-slate-100">
                       <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <AlertTriangle className="w-3.5 h-3.5" /> 분석 계산 공식
-                        (Methodology)
+                        <TrendingUp className="w-3.5 h-3.5" />{" "}
+                        {tickerAnalysis.symbol} 베타 보정 스윙 시나리오
                       </h4>
-                      <div className="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-600 mb-1">
-                            1. 실시간 베타계수 ($\beta$) 산출
-                          </p>
-                          <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
-                            Beta = Cov(r_stock, r_qqq) / Var(r_qqq)
-                            <br />
-                            *r: 최근{" "}
-                            {betaPeriod >= 12
-                              ? `${betaPeriod / 12}년`
-                              : `${betaPeriod}개월`}
-                            간의 일일 로그 수익률 (Daily Returns)
-                          </code>
-                        </div>
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-600 mb-1">
-                            2. 기대 가격 (Target Price) 예측
-                          </p>
-                          <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
-                            Target = Current * (1 + Beta * (QQQ_Target / QQQ_Current -
-                            1))
-                          </code>
-                          <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
-                            * 예상 종가는 옵션 에너지(GEX)와 표준편차(0.4-SD) 기대 범위를
-                            가중 평균하여 산출한 수치로, 통계적으로 가장 확률이 높은
-                            회귀 지점을 의미합니다.
-                          </p>
-                        </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-slate-600 mb-1">
-                      3. 초보수적 기대 범위 (0.25-SD) 산출
-                    </p>
-                    <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
-                      Expected Range = Price * IV * sqrt(T) * 0.25
-                    </code>
-                    <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
-                      * 도달 확률을 약 80% 수준으로 극대화하기 위해 표준편차 범위를
-                      매우 타이트하게(0.25배) 설정한 핵심 매매 구간입니다.
-                    </p>
-                  </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {tickerAnalysis.swingScenarios.map((scenario, idx) => (
+                          <div
+                            key={idx}
+                            className="p-4 bg-slate-50 rounded-2xl border border-slate-100"
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                {scenario.entryDate} → {scenario.exitDate}
+                              </span>
+                              <div className="text-right">
+                                <span className="block text-sm font-black text-emerald-600">
+                                  +{scenario.profit?.toFixed(2)}%
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-[11px] text-slate-600 font-medium mb-3">
+                              {scenario.description}
+                            </div>
+                            <div className="space-y-1.5 text-[10px] font-mono">
+                              <div className="flex justify-between items-center text-slate-500">
+                                <span>진입가</span>
+                                <span className="font-bold text-slate-700">
+                                  ${scenario.entryPrice?.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center text-blue-500">
+                                <span>기본 목표</span>
+                                <span className="font-bold text-blue-700">
+                                  ${scenario.exitPrice?.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center text-red-500">
+                                <span>확장 목표</span>
+                                <span className="font-bold text-red-700">
+                                  ${scenario.extensionPrice?.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </>
-                ) : (
-                  <p className="text-xs text-slate-400 text-center py-8">
-                    차트 데이터를 불러올 수 없습니다.
-                  </p>
-                )}
+                  )}
+
+                {/* ✅ 티커 시장 방향성 및 확률 예측 표시 */}
+                {tickerAnalysis.trendForecast &&
+                  tickerAnalysis.trendForecast.length > 0 && (
+                    <div className="mt-8 pt-6 border-t border-slate-100">
+                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                        <TrendingUp className="w-3.5 h-3.5" />{" "}
+                        {tickerAnalysis.symbol} 추세 및 확률 예측
+                      </h4>
+                      <div className="space-y-6">
+                        {tickerAnalysis.trendForecast.map((forecast, idx) => (
+                          <div key={idx}>
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={`px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-wider ${
+                                    forecast.direction === "상승"
+                                      ? "bg-emerald-500"
+                                      : forecast.direction === "하락"
+                                      ? "bg-red-500"
+                                      : "bg-slate-400"
+                                  }`}
+                                >
+                                  {forecast.direction}
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-bold font-mono">
+                                  {forecast.period}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest mb-1">
+                                  예측 신뢰도
+                                </div>
+                                <div className="text-xl font-black text-indigo-600">
+                                  {forecast.probability}%
+                                </div>
+                              </div>
+                            </div>
+                            <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 text-xs text-slate-600 leading-relaxed font-medium">
+                              {forecast.description}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {/* ✅ 티커 세부 구간별 추세 예측 표시 */}
+                {tickerAnalysis.segmentedTrends &&
+                  tickerAnalysis.segmentedTrends.length > 0 && (
+                    <div className="mt-8 pt-6 border-t border-slate-100">
+                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <TrendingUp className="w-3.5 h-3.5" />{" "}
+                        {tickerAnalysis.symbol} 기대 경로 (Segmented Trends)
+                      </h4>
+                      <div className="space-y-3">
+                        {tickerAnalysis.segmentedTrends.map((trend, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-slate-100"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div
+                                className={`w-2.5 h-2.5 rounded-full ${
+                                  trend.direction === "상승"
+                                    ? "bg-emerald-500 animate-pulse"
+                                    : trend.direction === "하락"
+                                    ? "bg-red-500"
+                                    : "bg-slate-300"
+                                }`}
+                              />
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold text-slate-700 font-mono">
+                                  {trend.startDate} ~ {trend.endDate}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-medium">
+                                  ${trend.startPrice?.toFixed(2)} → $
+                                  {trend.endPrice?.toFixed(2)}
+                                </span>
+                              </div>
+                              <span
+                                className={`text-[11px] font-black px-2.5 py-1 rounded-lg uppercase ${
+                                  trend.direction === "상승"
+                                    ? "text-emerald-600 bg-emerald-50"
+                                    : trend.direction === "하락"
+                                    ? "text-red-600 bg-red-50"
+                                    : "text-slate-500 bg-slate-100"
+                                }`}
+                              >
+                                {trend.direction}
+                              </span>
+                            </div>
+                            <span className="text-xs text-slate-500 font-medium italic">
+                              {trend.description}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <Zap className="w-3.5 h-3.5 text-yellow-500" />{" "}
+                    {tickerAnalysis.symbol} 1일 스캘핑 시나리오
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {tickerAnalysis.timeSeries?.slice(0, 5).map((item, idx) => {
+                      // ✅ 항상 낮은 가격을 buyPrice, 높은 가격을 sellPrice로 설정 (Long 관점 스캘핑)
+                      const rawP1 = Math.max(
+                        item.expectedSupport,
+                        item.expectedLower
+                      );
+                      const rawP2 = Math.min(
+                        item.expectedResistance,
+                        item.expectedUpper
+                      );
+
+                      const buyPrice = Math.min(rawP1, rawP2);
+                      const sellPrice = Math.max(rawP1, rawP2);
+
+                      // 스캘핑이므로 목표가를 저항선보다 약간 더 보수적으로(99.7%) 잡음
+                      const targetPrice = sellPrice * 0.997;
+                      const profit =
+                        ((targetPrice - buyPrice) / buyPrice) * 100;
+
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100 group hover:border-yellow-200 transition-colors"
+                        >
+                          <div>
+                            <div className="text-[9px] font-bold text-slate-400 mb-1">
+                              {item.date} 단기 타점
+                            </div>
+                            <div className="text-[10px] font-mono flex items-center gap-1.5 mb-2">
+                              <span className="text-blue-600 font-bold">
+                                Buy @ ${buyPrice.toFixed(2)}
+                              </span>
+                              <span className="text-slate-300">→</span>
+                              <span className="text-red-600 font-bold">
+                                ${targetPrice.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex gap-1 h-1 w-full max-w-[80px] rounded-full overflow-hidden bg-slate-100">
+                              <div
+                                className="bg-emerald-500"
+                                style={{
+                                  width: `${item.priceProbability.up}%`,
+                                }}
+                              />
+                              <div
+                                className="bg-slate-400"
+                                style={{
+                                  width: `${item.priceProbability.neutral}%`,
+                                }}
+                              />
+                              <div
+                                className="bg-red-500"
+                                style={{
+                                  width: `${item.priceProbability.down}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[11px] font-black text-emerald-600">
+                              {profit <= 0
+                                ? "Range-bound"
+                                : `+${profit.toFixed(2)}%`}
+                            </div>
+                            {item.expectedPrice && (
+                              <div className="text-[10px] font-mono font-black text-indigo-500 mt-1">
+                                Target ${item.expectedPrice.toFixed(2)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-6 border-t border-slate-100">
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <TrendingUp className="w-3.5 h-3.5" />{" "}
+                    {tickerAnalysis.symbol} 만기별 예상 지지/저항
+                  </h4>
+                  {tickerAnalysis.timeSeries &&
+                  tickerAnalysis.timeSeries.length > 0 ? (
+                    <>
+                      <div className="h-[300px] w-full mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart
+                            data={tickerAnalysis.timeSeries}
+                            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                          >
+                            <CartesianGrid
+                              strokeDasharray="3 3"
+                              vertical={false}
+                              stroke="#f1f5f9"
+                            />
+                            <XAxis
+                              dataKey="date"
+                              tick={{ fontSize: 10, fontWeight: 600 }}
+                              stroke="#64748b"
+                            />
+                            <YAxis
+                              domain={["auto", "auto"]}
+                              tick={{ fontSize: 10, fontWeight: 600 }}
+                              stroke="#64748b"
+                              label={{
+                                value: "Price ($)",
+                                angle: -90,
+                                position: "insideLeft",
+                                fontSize: 10,
+                                fontWeight: 700,
+                              }}
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                borderRadius: "12px",
+                                border: "none",
+                                boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+                                fontSize: "11px",
+                              }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="expectedPrice"
+                              stroke="#6366f1"
+                              strokeWidth={2}
+                              dot={{ r: 4, fill: "#6366f1" }}
+                              name="예상 종가 (Target)"
+                            />
+                            <Line
+                              type="stepAfter"
+                              dataKey="expectedResistance"
+                              stroke="#ef4444"
+                              strokeDasharray="5 5"
+                              strokeWidth={2}
+                              dot={{ r: 3, fill: "#ef4444" }}
+                              name="예상 저항선"
+                            />
+                            <Line
+                              type="stepAfter"
+                              dataKey="expectedSupport"
+                              stroke="#3b82f6"
+                              strokeDasharray="5 5"
+                              strokeWidth={2}
+                              dot={{ r: 3, fill: "#3b82f6" }}
+                              name="예상 지지선"
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="expectedUpper"
+                              stroke="#10b981"
+                              strokeWidth={1}
+                              strokeDasharray="2 2"
+                              dot={false}
+                              name="0.25-SD 상단"
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="expectedLower"
+                              stroke="#10b981"
+                              strokeWidth={1}
+                              strokeDasharray="2 2"
+                              dot={false}
+                              name="0.25-SD 하단"
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey={() => tickerAnalysis.currentPrice}
+                              stroke="#1e293b"
+                              strokeWidth={1}
+                              dot={false}
+                              strokeOpacity={0.3}
+                              name="현재가"
+                            />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      <div className="mt-8 pt-6 border-t border-slate-100">
+                        <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                          <AlertTriangle className="w-3.5 h-3.5" /> 분석 계산
+                          공식 (Methodology)
+                        </h4>
+                        <div className="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                          <div>
+                            <p className="text-[11px] font-bold text-slate-600 mb-1">
+                              1. 실시간 베타계수 ($\beta$) 산출
+                            </p>
+                            <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
+                              Beta = Cov(r_stock, r_qqq) / Var(r_qqq)
+                              <br />
+                              *r: 최근{" "}
+                              {betaPeriod >= 12
+                                ? `${betaPeriod / 12}년`
+                                : `${betaPeriod}개월`}
+                              간의 일일 로그 수익률 (Daily Returns)
+                            </code>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-bold text-slate-600 mb-1">
+                              2. 기대 가격 (Target Price) 예측
+                            </p>
+                            <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
+                              Target = Current * (1 + Beta * (QQQ_Target /
+                              QQQ_Current - 1))
+                            </code>
+                            <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
+                              * 예상 종가는 옵션 에너지(GEX)와 표준편차(0.4-SD)
+                              기대 범위를 가중 평균하여 산출한 수치로,
+                              통계적으로 가장 확률이 높은 회귀 지점을
+                              의미합니다.
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-bold text-slate-600 mb-1">
+                              3. 초보수적 기대 범위 (0.25-SD) 산출
+                            </p>
+                            <code className="text-[10px] block bg-white p-2 rounded-lg border border-slate-200 text-slate-500 leading-relaxed font-mono">
+                              Expected Range = Price * IV * sqrt(T) * 0.25
+                            </code>
+                            <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
+                              * 도달 확률을 약 80% 수준으로 극대화하기 위해
+                              표준편차 범위를 매우 타이트하게(0.25배) 설정한
+                              핵심 매매 구간입니다.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs text-slate-400 text-center py-8">
+                      차트 데이터를 불러올 수 없습니다.
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
             </section>
           )}
         </div>

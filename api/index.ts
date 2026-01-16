@@ -53,6 +53,41 @@ const safeNum = (val: unknown, fallback: number = 0): number => {
   return typeof val === "number" && isFinite(val) ? val : fallback;
 };
 
+const clamp = (value: number, min: number, max: number): number => {
+  return Math.min(max, Math.max(min, value));
+};
+
+const calculateGammaAdjustedExpectedPrice = ({
+  rangeMid,
+  rangeHalf,
+  sentiment,
+  gammaFlip,
+  totalGex,
+}: {
+  rangeMid: number;
+  rangeHalf: number;
+  sentiment: number;
+  gammaFlip: number;
+  totalGex: number;
+}): number => {
+  if (!isFinite(rangeHalf) || rangeHalf <= 0) {
+    return rangeMid;
+  }
+
+  // sentiment: GEX 비중 기반 방향성 (기존 로직 유지)
+  const sentimentBias = (sentiment / 100) * 0.3;
+
+  // gamma: flip 기준으로 가격이 당겨질 방향 (GEX 부호로 안정/불안정 보정)
+  const gammaBiasRaw = isFinite(gammaFlip)
+    ? clamp((gammaFlip - rangeMid) / rangeHalf, -1, 1)
+    : 0;
+  const gammaSign = totalGex >= 0 ? 1 : -1;
+  const gammaBias = gammaBiasRaw * gammaSign * 0.2;
+
+  const combinedBias = clamp(sentimentBias + gammaBias, -0.35, 0.35);
+  return rangeMid + rangeHalf * combinedBias;
+};
+
 /**
  * 사용자 지정 기간 히스토리 데이터를 기반으로 베타계수 직접 계산
  */
@@ -914,16 +949,19 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             putsProcessed: puts.length,
           });
 
-          // 7) 심리 지수(Sentiment)를 반영한 예상 종가 산출
+          // 7) 심리 지수 + 감마 플립을 반영한 예상 종가 산출
           // 단순히 중간값이 아니라, 에너지가 쏠린 방향으로 편향(Bias) 부여
           const realisticSupport = Math.max(putWall, expectedLower);
           const realisticResistance = Math.min(callWall, expectedUpper);
           const rangeMid = (realisticSupport + realisticResistance) / 2;
           const rangeHalf = (realisticResistance - realisticSupport) / 2;
-
-          // sentiment가 -100 ~ 100이므로, 이를 -1 ~ 1로 변환하여 범위의 30% 내에서 가격 편향 부여
-          const sentimentBias = (sentiment / 100) * 0.3;
-          const expectedPrice = rangeMid + rangeHalf * sentimentBias;
+          const expectedPrice = calculateGammaAdjustedExpectedPrice({
+            rangeMid,
+            rangeHalf,
+            sentiment,
+            gammaFlip,
+            totalGex,
+          });
 
           return {
             date: expDateStr.split("-").slice(1).join("/"), // "MM/DD" 형식으로 직접 추출
@@ -1443,6 +1481,7 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           callResistance: number;
           expectedUpper: number;
           expectedLower: number;
+          gammaFlip: number;
           sentiment: number;
           totalGex: number;
           expectedPrice: number;
@@ -1457,6 +1496,8 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
             currentPrice * (1 + beta * (q.expectedUpper / qPrice - 1));
           const tAtQLower =
             currentPrice * (1 + beta * (q.expectedLower / qPrice - 1));
+          const tAtQGammaFlip =
+            currentPrice * (1 + beta * (q.gammaFlip / qPrice - 1));
 
           // ✅ 2. 티커 기준의 상단(Upside)과 하단(Downside) 정의
           // 정방향: Upside(저항선), Downside(지지선)
@@ -1482,11 +1523,16 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
           const realisticSupport = Math.max(tDownsideWall, tDownsideLimit);
           const realisticResistance = Math.min(tUpsideWall, tUpsideLimit);
           
-          // 심리 반영 예상 종가 산출
+          // 심리 + 감마 플립 반영 예상 종가 산출
           const rangeMid = (realisticSupport + realisticResistance) / 2;
           const rangeHalf = (realisticResistance - realisticSupport) / 2;
-          const sentimentBias = (q.sentiment / 100) * 0.3;
-          const expectedPrice = rangeMid + rangeHalf * (beta < 0 ? -sentimentBias : sentimentBias);
+          const expectedPrice = calculateGammaAdjustedExpectedPrice({
+            rangeMid,
+            rangeHalf,
+            sentiment: beta < 0 ? -q.sentiment : q.sentiment,
+            gammaFlip: tAtQGammaFlip,
+            totalGex: beta < 0 ? -q.totalGex : q.totalGex,
+          });
 
           const profitPotential =
             ((realisticResistance - realisticSupport) / realisticSupport) * 100;
