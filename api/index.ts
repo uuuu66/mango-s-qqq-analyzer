@@ -1,10 +1,21 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
 import YahooFinance from "yahoo-finance2";
-import { BlackScholes } from "@uqee/black-scholes";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
+import {
+  calculateExpectedMoveRange,
+  calculateGammaAdjustedExpectedPrice,
+  calculatePriceProbabilities,
+  calculateSentiment,
+  findTrueGammaFlip,
+  generateRecommendations,
+  processOption,
+  VOLATILITY_TRIGGER_RATIO,
+  type OptionDataInput,
+  type ProcessedOption,
+} from "./analysis/metrics.ts";
 
 // dayjs 설정 (ESM/CJS 호환성을 위해 .js 확장자 명시 권장되는 경우 대응)
 dayjs.extend(utc);
@@ -13,20 +24,10 @@ dayjs.extend(timezone);
 const yahooFinance = new YahooFinance({
   suppressNotices: ["ripHistorical", "yahooSurvey"],
 });
-const blackScholes = new BlackScholes();
-
 const app = express();
 
 app.use(cors());
 app.use(express.json());
-
-const RISK_FREE_RATE = 0.043;
-const DIVIDEND_YIELD = 0.006;
-
-// ✅ 하이퍼파라미터 안전한 기본값 보장
-const VOLATILITY_TRIGGER_RATIO = 0.985;
-const IV_CLAMP_MIN = 0.0001;
-const IV_CLAMP_MAX = 5.0;
 
 const formatExpirationDate = (date: Date) =>
   dayjs(date).utc().format("YYYY-MM-DD");
@@ -44,48 +45,6 @@ const isWeeklyExpiration = (date: Date) => {
 const isMonthlyExpiration = (date: Date) => {
   const d = dayjs(date).utc();
   return d.day() === 5 && isThirdFriday(date);
-};
-
-/**
- * 수치 안전화 헬퍼 (NaN 방지)
- */
-const safeNum = (val: unknown, fallback: number = 0): number => {
-  return typeof val === "number" && isFinite(val) ? val : fallback;
-};
-
-const clamp = (value: number, min: number, max: number): number => {
-  return Math.min(max, Math.max(min, value));
-};
-
-const calculateGammaAdjustedExpectedPrice = ({
-  rangeMid,
-  rangeHalf,
-  sentiment,
-  gammaFlip,
-  totalGex,
-}: {
-  rangeMid: number;
-  rangeHalf: number;
-  sentiment: number;
-  gammaFlip: number;
-  totalGex: number;
-}): number => {
-  if (!isFinite(rangeHalf) || rangeHalf <= 0) {
-    return rangeMid;
-  }
-
-  // sentiment: GEX 비중 기반 방향성 (기존 로직 유지)
-  const sentimentBias = (sentiment / 100) * 0.3;
-
-  // gamma: flip 기준으로 가격이 당겨질 방향 (GEX 부호로 안정/불안정 보정)
-  const gammaBiasRaw = isFinite(gammaFlip)
-    ? clamp((gammaFlip - rangeMid) / rangeHalf, -1, 1)
-    : 0;
-  const gammaSign = totalGex >= 0 ? 1 : -1;
-  const gammaBias = gammaBiasRaw * gammaSign * 0.2;
-
-  const combinedBias = clamp(sentimentBias + gammaBias, -0.35, 0.35);
-  return rangeMid + rangeHalf * combinedBias;
 };
 
 /**
@@ -178,109 +137,6 @@ const calculateManualBeta = async (
   }
 };
 
-/**
- * 정통 Gamma Flip 산출을 위한 Net GEX 계산 함수 (특정 Spot 기준)
- */
-const calculateNetGexAtSpot = (
-  options: ProcessedOption[],
-  spot: number,
-  time: number
-): number => {
-  return options.reduce((acc, opt) => {
-    try {
-      const adjustedSpot = spot * Math.exp(-DIVIDEND_YIELD * time);
-
-      // ✅ GEX 프로파일링을 위한 IV 보정 (에너지 증발 방지)
-      // 만기가 짧을 때 IV가 너무 낮으면 감마가 0이 되는 현상을 막기 위해 Floor(10%) 적용
-      const ivRaw = opt.impliedVolatility;
-      const sigma =
-        typeof ivRaw === "number" && isFinite(ivRaw)
-          ? Math.max(0.1, ivRaw) // 최소 10% 변동성 가정으로 에너지 분포 확보
-          : 0.2;
-
-      const result = blackScholes.option({
-        rate: RISK_FREE_RATE,
-        sigma: sigma,
-        strike: opt.strike,
-        time: Math.max(time, 0.0001),
-        type: opt.type,
-        underlying: adjustedSpot,
-      });
-
-      // ✅ 감마는 항상 절대값 사용, 부호는 오직 type에 의해서만 결정
-      const gamma = Math.abs(safeNum(result.gamma, 0));
-      const gex =
-        (opt.type === "call" ? 1 : -1) *
-        gamma *
-        (opt.openInterest || 0) *
-        100 *
-        (spot * spot) *
-        0.01;
-      return acc + gex;
-    } catch {
-      return acc;
-    }
-  }, 0);
-};
-
-/**
- * Spot 스캔 방식의 진짜 Gamma Flip (Zero Gamma Level) 탐색 함수 (이진 탐색 최적화)
- */
-const findTrueGammaFlip = (
-  options: ProcessedOption[],
-  currentSpot: number,
-  time: number
-): number => {
-  if (options.length === 0) return currentSpot;
-
-  const scanRange = 0.1; // 현재가 기준 ±10% 탐색
-  let low = currentSpot * (1 - scanRange);
-  let high = currentSpot * (1 + scanRange);
-
-  // 1) 양 끝점의 GEX 부호 확인
-  const gexLow = calculateNetGexAtSpot(options, low, time);
-  const gexHigh = calculateNetGexAtSpot(options, high, time);
-
-  // 부호가 같다면 (범위 내에 Flip이 없다면) 더 가까운 쪽 혹은 현재가 반환
-  if (gexLow * gexHigh > 0) {
-    return Math.abs(gexLow) < Math.abs(gexHigh) ? low : high;
-  }
-
-  // 2) 이진 탐색 (Binary Search)으로 0 지점 정밀 추적 (최대 15회 반복으로 충분히 정밀함)
-  for (let i = 0; i < 15; i++) {
-    const mid = (low + high) / 2;
-    const gexMid = calculateNetGexAtSpot(options, mid, time);
-
-    if (Math.abs(gexMid) < 0.1) return mid; // 충분히 0에 가까우면 반환
-
-    if (gexLow * gexMid <= 0) {
-      high = mid;
-    } else {
-      low = mid;
-    }
-  }
-
-  return (low + high) / 2;
-};
-
-interface OptionDataInput {
-  strike: number;
-  impliedVolatility: number;
-  openInterest?: number;
-  lastPrice: number;
-  change: number;
-  percentChange?: number;
-  volume?: number;
-  expiration: Date;
-}
-
-interface ProcessedOption extends Omit<OptionDataInput, "expiration"> {
-  type: "call" | "put";
-  gamma: number;
-  gex: number;
-  expirationDate: Date;
-}
-
 interface ExpirationAnalysis {
   date: string;
   isoDate: string; // ISO 형식의 전체 날짜 (요일 계산용)
@@ -349,14 +205,6 @@ interface DiagnosticDetail {
   putsProcessed?: number;
 }
 
-interface Recommendation {
-  status: string;
-  description: string;
-  min: number;
-  max: number;
-  color: string;
-}
-
 interface Diagnostics {
   step: string;
   currentPrice: number | null;
@@ -364,210 +212,6 @@ interface Diagnostics {
   details: DiagnosticDetail[];
   serverLogs: string[]; // 프론트엔드로 보낼 서버 로그 저장용
 }
-
-const generateRecommendations = (
-  support: number,
-  resistance: number,
-  currentPrice: number
-): Recommendation[] => {
-  // 지지선과 저항선이 뒤집혀 있거나 동일한 경우 보정
-  let low = Math.min(support, resistance);
-  let high = Math.max(support, resistance);
-
-  // ✅ 최소 폭 보정: 0.5% -> 2% (ATR 기반 느낌으로 확장)
-  // 너무 좁은 구간은 매매 실익이 없으므로 최소 2%의 변동 범위를 강제로 확보
-  const minWidth = currentPrice * 0.02;
-  if (high - low < minWidth) {
-    const center = (low + high) / 2;
-    low = center - minWidth / 2;
-    high = center + minWidth / 2;
-  }
-
-  const mid = (low + high) / 2;
-  const range = high - low;
-
-  // ✅ Neutral 구간을 mid(현재가 부근) 기준 대칭으로 설정하여 '항상 관망' 현상 해소
-  // 기존: mid ~ mid + 0.6*(high-mid) -> 50% ~ 80% 구간이 Neutral (비대칭)
-  // 변경: mid - 0.1*range ~ mid + 0.1*range -> 40% ~ 60% 구간이 Neutral (대칭)
-  const neutralStart = mid - range * 0.1;
-  const neutralEnd = mid + range * 0.1;
-
-  // 리서치 및 사용자 제언 반영: 지지선이 뚫린 후 일정 수준(예: 3%) 이상 하락하면 'Extreme Risk'로 판단
-  const panicLevel = low * 0.97;
-
-  return [
-    {
-      status: "Extreme Risk",
-      description: "지지선 완전 붕괴: 패닉 셀링 및 바닥 미확인 구간 (관망)",
-      min: 0,
-      max: panicLevel,
-      color: "#475569", // 진한 회색 (위험/관망)
-    },
-    {
-      status: "Strong Buy",
-      description: "과매도/지지선 부근: 기술적 반등 기대 및 분할 매수",
-      min: panicLevel,
-      max: low,
-      color: "#22c55e",
-    },
-    {
-      status: "Buy",
-      description: "지지선 ~ 중립 하단: 저점 분할 매수 구간",
-      min: low,
-      max: neutralStart,
-      color: "#86efac",
-    },
-    {
-      status: "Neutral",
-      description: "중간 영역: 추세 관망 및 보유 구간",
-      min: neutralStart,
-      max: neutralEnd,
-      color: "#94a3b8",
-    },
-    {
-      status: "Sell",
-      description: "중립 상단 ~ 저항선: 분할 매도 수익 실현 구간",
-      min: neutralEnd,
-      max: high,
-      color: "#fca5a5",
-    },
-    {
-      status: "Strong Sell",
-      description: "저항선(Resistance) 이상: 과열 및 강력한 매도 주의",
-      min: high,
-      max: high + 20, // 범위를 조금 더 확보
-      color: "#ef4444",
-    },
-  ];
-};
-
-/**
- * Newton-Raphson 방식을 이용한 내재 변동성(IV) 역산 함수
- */
-const calculateImpliedVolatility = (
-  targetPrice: number,
-  params: {
-    strike: number;
-    time: number;
-    type: "call" | "put";
-    underlying: number;
-    rate: number;
-  }
-): number => {
-  let sigma = 0.2; // 초기 추정값 (20%)
-  const maxIterations = 20;
-  const precision = 0.0001;
-
-  for (let i = 0; i < maxIterations; i++) {
-    const result = blackScholes.option({
-      ...params,
-      sigma,
-    });
-
-    const diff = result.price - targetPrice;
-    if (Math.abs(diff) < precision) return sigma;
-
-    // 베가(Vega) 계산: 변동성이 1% 변할 때 옵션 가격의 변화
-    // 직접적인 베가 함수가 없을 경우 수치 미분으로 근사
-    const epsilon = 0.001;
-    const resultNext = blackScholes.option({
-      ...params,
-      sigma: sigma + epsilon,
-    });
-    const vega = (resultNext.price - result.price) / epsilon;
-
-    if (Math.abs(vega) < 0.00001) break; // 계산 불능 시 중단
-
-    sigma = sigma - diff / vega;
-    if (sigma <= 0) sigma = 0.0001; // 변동성은 음수가 될 수 없음
-    if (sigma > 5) sigma = 5; // 과도한 변동성 방지
-  }
-
-  return sigma;
-};
-
-const processOption = (
-  option: OptionDataInput,
-  type: "call" | "put",
-  spotPrice: number,
-  timeToExpiration: number
-): ProcessedOption => {
-  // console.log(`[PROCESS] calling blackscholes for strike ${option.strike}`);
-  const strike = Number(option.strike);
-  // ✅ OI가 0인 경우 거래량(volume)을 일부 참고하여 에너지 계산 가능하도록 보정 (정수화)
-  const openInterest =
-    Number(option.openInterest) > 0
-      ? Math.round(Number(option.openInterest))
-      : Number(option.volume) > 0
-      ? Math.round(Number(option.volume) * 0.1)
-      : 1;
-
-  const adjustedSpot = spotPrice * Math.exp(-DIVIDEND_YIELD * timeToExpiration);
-  const ivRaw = option.impliedVolatility;
-
-  let impliedVolatility: number;
-
-  // ✅ IV 데이터가 비정상(0.001 미만)인 경우 직접 역산 시도
-  if (typeof ivRaw !== "number" || !isFinite(ivRaw) || ivRaw < 0.001) {
-    impliedVolatility = calculateImpliedVolatility(option.lastPrice, {
-      strike,
-      time: Math.max(timeToExpiration, 0.0001),
-      type,
-      underlying: adjustedSpot,
-      rate: RISK_FREE_RATE,
-    });
-  } else {
-    impliedVolatility = ivRaw;
-  }
-
-  // ✅ IV 클램핑 (발산 방지)
-  impliedVolatility = Math.max(
-    IV_CLAMP_MIN,
-    Math.min(IV_CLAMP_MAX, impliedVolatility)
-  );
-
-  // ✅ GEX 프로파일링을 위한 IV 보정 (에너지 증발 방지)
-  const greekSigma = Math.max(0.1, impliedVolatility);
-
-  let gamma = 0;
-  try {
-    const result = blackScholes.option({
-      rate: RISK_FREE_RATE,
-      sigma: greekSigma,
-      strike,
-      time: Math.max(timeToExpiration, 0.0001),
-      type,
-      underlying: adjustedSpot,
-    });
-    // ✅ 감마는 항상 절대값 보장
-    gamma = Math.abs(safeNum(result.gamma, 0));
-  } catch {
-    // gamma = 0
-  }
-
-  // Dollar Notional GEX (주가 1% 변동 시 발생하는 명목 노출액)
-  // ✅ 주의: OI 기반의 방향 가정(Proxy)이며, 실제 딜러 포지션과 다를 수 있음
-  const gammaExposure = safeNum(
-    (type === "call" ? 1 : -1) *
-      gamma *
-      openInterest *
-      100 *
-      (spotPrice * spotPrice) *
-      0.01,
-    0
-  );
-
-  return {
-    ...option,
-    strike,
-    impliedVolatility,
-    openInterest,
-    type,
-    gamma,
-    gex: gammaExposure,
-    expirationDate: option.expiration,
-  };
-};
 
 interface SwingScenario {
   entryDate: string;
@@ -839,10 +483,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const totalGex = callGex + putGex;
 
           // 심리 지수(Sentiment) 계산
-          const sentiment =
-            Math.abs(callGex) + Math.abs(putGex) > 0
-              ? ((callGex + putGex) / (Math.abs(callGex) + Math.abs(putGex))) * 100
-              : 0;
+          const sentiment = calculateSentiment(callGex, putGex);
 
           // 4) 진짜 Gamma Flip (Spot-Scan 방식)
           const gammaFlip = findTrueGammaFlip(
@@ -853,80 +494,23 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
           const volTrigger = gammaFlip * VOLATILITY_TRIGGER_RATIO;
 
           // 5) 옵션 분포 기반 가격 변동 확률 계산
-          const totalCallEnergy = calls.reduce(
-            (acc, opt) => acc + Math.max(0, opt.gex),
-            0
-          );
-          const totalPutEnergy = puts.reduce(
-            (acc, opt) => acc + Math.abs(Math.min(0, opt.gex)),
-            0
-          );
-          const totalEnergy = totalCallEnergy + totalPutEnergy;
-
-          let upProb = 50;
-          let downProb = 50;
-          let neutralProb = 0;
-
-          // ✅ 확률 계산 로직 고도화 (Smoothing & Cap 적용)
-          if (totalEnergy > 0.0001) {
-            const rawUpProb = (totalCallEnergy / totalEnergy) * 100;
-            const rawDownProb = (totalPutEnergy / totalEnergy) * 100;
-
-            // 중립 확률 최솟값 보장 (에너지가 쏠려도 최소 15%는 관망세로 설정)
-            neutralProb = Math.max(
-              15,
-              100 - Math.abs(rawUpProb - rawDownProb) * 1.2 - 10
-            );
-
-            const remaining = 100 - neutralProb;
-            const ratio = rawUpProb / (rawUpProb + rawDownProb);
-
-            // 방향성 확률이 80%를 넘지 않도록 캡(Cap) 적용 (금융 시장의 불확실성 반영)
-            upProb = Math.min(80, remaining * ratio);
-            downProb = Math.min(80, remaining * (1 - ratio));
-
-            // 캡 적용 후 남는 확률을 다시 중립에 보태줌
-            neutralProb = 100 - upProb - downProb;
-          }
-          // ✅ 2순위: 에너지가 증발했으면 수량(Open Interest) 기반으로 즉시 전환
-          else if (filteredCallOI + filteredPutOI > 0) {
-            const totalOI = filteredCallOI + filteredPutOI;
-            upProb = (filteredCallOI / totalOI) * 100;
-            downProb = (filteredPutOI / totalOI) * 100;
-            neutralProb = 15;
-
-            const remaining = 100 - neutralProb;
-            const ratio = upProb / (upProb + downProb);
-            upProb = Math.min(80, remaining * ratio);
-            downProb = Math.min(80, remaining * (1 - ratio));
-            // 캡 적용 후 다시 중립 보정
-            neutralProb = 100 - upProb - downProb;
-          }
+          const priceProbability = calculatePriceProbabilities({
+            calls,
+            puts,
+            filteredCallOI,
+            filteredPutOI,
+          });
 
           const pcrFiltered =
             filteredCallOI > 0 ? filteredPutOI / filteredCallOI : 0;
 
-          // 6) 표준편차 기반 기대 변동폭(Expected Move) 산출 - 초보수적 0.4-SD 적용 (약 70% 도달 확률 타겟)
-          // Formula: Spot * IV * sqrt(T) * SD_Multiplier
-          const SCALP_SD_MULTIPLIER = 0.4; // 기존 0.25에서 0.4로 상향 (조금 더 넓은 구간 확보)
-          const nearAtmOptions = [...calls, ...puts].filter(
-            (opt) => Math.abs(opt.strike - currentPrice) / currentPrice < 0.05
-          );
-          const avgIv =
-            nearAtmOptions.length > 0
-              ? nearAtmOptions.reduce(
-                  (acc, opt) => acc + opt.impliedVolatility,
-                  0
-                ) / nearAtmOptions.length
-              : 0.25; // Fallback IV 25%
-
-          const expectedMove =
-            currentPrice *
-            avgIv *
-            Math.sqrt(Math.max(timeToExpiration, 1 / 365)) *
-            SCALP_SD_MULTIPLIER;
-          const expectedUpper = currentPrice + expectedMove;
-          const expectedLower = currentPrice - expectedMove;
+          // 6) 표준편차 기반 기대 변동폭(Expected Move) 산출
+          const { expectedUpper, expectedLower } = calculateExpectedMoveRange({
+            currentPrice,
+            calls,
+            puts,
+            timeToExpiration,
+          });
 
           // ✅ 진단 로그 추가 (Step 1)
           const zeroGexCalls = calls.filter((c) => c.gex === 0).length;
@@ -982,11 +566,7 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
                 Math.max(putWall, expectedLower)) *
               100,
             expectedPrice,
-            priceProbability: {
-              up: Math.round(upProb),
-              down: Math.round(downProb),
-              neutral: Math.round(neutralProb),
-            },
+            priceProbability,
             options: [...calls, ...puts],
             expectedUpper,
             expectedLower,
