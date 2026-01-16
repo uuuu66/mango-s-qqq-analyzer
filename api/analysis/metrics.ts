@@ -243,8 +243,9 @@ export const findTrueGammaFlip = (
   const gexLow = calculateNetGexAtSpot(options, low, time);
   const gexHigh = calculateNetGexAtSpot(options, high, time);
 
-  if (gexLow * gexHigh > 0) {
-    return Math.abs(gexLow) < Math.abs(gexHigh) ? low : high;
+  if (!isFinite(gexLow) || !isFinite(gexHigh) || gexLow * gexHigh > 0) {
+    // No flip within scan range: fall back to current spot for stability.
+    return currentSpot;
   }
 
   for (let i = 0; i < 15; i++) {
