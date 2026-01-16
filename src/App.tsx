@@ -361,11 +361,6 @@ const App: React.FC = () => {
     text += `==========================================\n\n`;
     text += `[ Summary ]\n`;
     text += `Current Price: $${data.currentPrice?.toFixed(2)}\n`;
-    if (data.nasdaqFuturesPrice && data.qqqToNasdaqFuturesRatio) {
-      text += `NQ Implied: ${data.nasdaqFuturesPrice.toFixed(
-        2
-      )} (x${data.qqqToNasdaqFuturesRatio.toFixed(2)})\n`;
-    }
     text += `Total Net GEX: ${data.totalNetGEX}\n`;
     text += `Market Regime: ${data.marketRegime}\n`;
     text += `Gamma Flip: $${data.gammaFlip?.toFixed(2)}\n`;
@@ -583,22 +578,6 @@ const App: React.FC = () => {
                     </span>
                   )}
                 </div>
-                {data?.nasdaqFuturesPrice && data?.qqqToNasdaqFuturesRatio && (
-                  <div className="flex items-center gap-2">
-                    <span className="hidden sm:inline text-slate-300">|</span>
-                    <div className="flex items-center gap-2 bg-emerald-50/50 px-3 py-1 rounded-full border border-emerald-100">
-                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight">
-                        NQ 환산:
-                      </span>
-                      <span className="text-[11px] font-black text-emerald-700">
-                        {data.nasdaqFuturesPrice.toFixed(2)}
-                      </span>
-                      <span className="text-[10px] font-bold text-emerald-500">
-                        (×{data.qqqToNasdaqFuturesRatio.toFixed(2)})
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
                 {currentStatus && (
@@ -1280,9 +1259,6 @@ const App: React.FC = () => {
               const sellPrice = Math.max(rawP1, rawP2);
               const targetPrice = sellPrice * 0.997;
               const profit = ((targetPrice - buyPrice) / buyPrice) * 100;
-              const nqRatio = data?.qqqToNasdaqFuturesRatio;
-              const nqBuy = nqRatio ? buyPrice * nqRatio : null;
-              const nqTarget = nqRatio ? targetPrice * nqRatio : null;
 
               return (
                 <div
@@ -1293,11 +1269,6 @@ const App: React.FC = () => {
                     <div className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest mb-1">
                       {item.date} 단기 타점
                     </div>
-                    {nqBuy && nqTarget && (
-                      <div className="text-[9px] font-mono text-emerald-300 mb-1">
-                        NQ ~ {nqBuy.toFixed(0)} → {nqTarget.toFixed(0)}
-                      </div>
-                    )}
                     <div className="flex items-center gap-2 text-sm">
                       <span className="font-bold text-emerald-400">
                         Buy @ ${buyPrice?.toFixed(2)}
@@ -2072,21 +2043,6 @@ const App: React.FC = () => {
                     // 스캘핑이므로 목표가를 저항선보다 약간 더 보수적으로(99.7%) 잡음
                     const targetPrice = sellPrice * 0.997;
                     const profit = ((targetPrice - buyPrice) / buyPrice) * 100;
-                    const nqRatio = data?.qqqToNasdaqFuturesRatio;
-                    const qqqSpot = data?.currentPrice;
-                    const tickerSpot = tickerAnalysis.currentPrice;
-                    const beta = tickerAnalysis.beta;
-                    const toQqqFromTicker = (price: number) => {
-                      if (!qqqSpot || !tickerSpot || !beta) return null;
-                      const relMove = price / tickerSpot - 1;
-                      return qqqSpot * (1 + relMove / beta);
-                    };
-                    const qqqAtBuy = toQqqFromTicker(buyPrice);
-                    const qqqAtTarget = toQqqFromTicker(targetPrice);
-                    const nqBuy =
-                      nqRatio && qqqAtBuy ? qqqAtBuy * nqRatio : null;
-                    const nqTarget =
-                      nqRatio && qqqAtTarget ? qqqAtTarget * nqRatio : null;
 
                     return (
                       <div
@@ -2097,11 +2053,6 @@ const App: React.FC = () => {
                           <div className="text-[9px] font-bold text-slate-400 mb-1">
                             {item.date} 단기 타점
                           </div>
-                          {nqBuy && nqTarget && (
-                            <div className="text-[9px] font-mono text-slate-400 mb-1">
-                              NQ ~ {nqBuy.toFixed(0)} → {nqTarget.toFixed(0)}
-                            </div>
-                          )}
                           <div className="text-[10px] font-mono flex items-center gap-1.5 mb-2">
                             <span className="text-blue-600 font-bold">
                               Buy @ ${buyPrice.toFixed(2)}
