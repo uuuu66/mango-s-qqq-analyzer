@@ -566,76 +566,81 @@ const App: React.FC = () => {
                 30-Day Outlook
               </span>
             </h1>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1.5">
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500 text-sm font-medium">
-                  Price:
-                </span>
-                <span className="font-mono text-xl font-black text-slate-900">
-                  ${data?.currentPrice?.toFixed(2)}
-                </span>
-                {lastUpdated && (
-                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 ml-1">
-                    {lastUpdated} 데이터입니다.
+            <div className="mt-1.5 flex flex-col gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500 text-sm font-medium">
+                    Price:
                   </span>
-                )}
+                  <span className="font-mono text-xl font-black text-slate-900">
+                    ${data?.currentPrice?.toFixed(2)}
+                  </span>
+                  {lastUpdated && (
+                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 ml-1">
+                      {lastUpdated} 데이터입니다.
+                    </span>
+                  )}
+                </div>
+                {data?.nasdaqFuturesPrice &&
+                  data?.qqqToNasdaqFuturesRatio && (
+                    <div className="flex items-center gap-2">
+                      <span className="hidden sm:inline text-slate-300">|</span>
+                      <div className="flex items-center gap-2 bg-emerald-50/50 px-3 py-1 rounded-full border border-emerald-100">
+                        <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight">
+                          NQ 환산:
+                        </span>
+                        <span className="text-[11px] font-black text-emerald-700">
+                          {data.nasdaqFuturesPrice.toFixed(2)}
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-500">
+                          (×{data.qqqToNasdaqFuturesRatio.toFixed(2)})
+                        </span>
+                      </div>
+                    </div>
+                  )}
               </div>
-                {data?.nasdaqFuturesPrice && data?.qqqToNasdaqFuturesRatio && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
+                {currentStatus && (
                   <div className="flex items-center gap-2">
                     <span className="hidden sm:inline text-slate-300">|</span>
-                    <div className="flex items-center gap-2 bg-emerald-50/50 px-3 py-1 rounded-full border border-emerald-100">
-                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight">
-                        NQ 환산:
+                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                        판단:
                       </span>
-                      <span className="text-[11px] font-black text-emerald-700">
-                        {data.nasdaqFuturesPrice.toFixed(2)}
+                      <span
+                        className="px-2 py-0.5 rounded-md text-[11px] font-black text-white uppercase tracking-wider shadow-sm"
+                        style={{ backgroundColor: currentStatus.color }}
+                      >
+                        {currentStatus.status}
                       </span>
-                      <span className="text-[10px] font-bold text-emerald-500">
-                        (×{data.qqqToNasdaqFuturesRatio.toFixed(2)})
+                      <span className="text-[11px] font-bold text-slate-600 ml-1">
+                        {currentStatus.status === "Strong Buy"
+                          ? "적극 분할 매수 권장"
+                          : currentStatus.status === "Buy"
+                          ? "분할 매수 유효 구간"
+                          : currentStatus.status === "Neutral"
+                          ? "보유 및 추세 관망"
+                          : currentStatus.status === "Sell"
+                          ? "수익 실현 및 매도 고려"
+                          : "위험 관리 및 매도 권장"}
                       </span>
                     </div>
                   </div>
                 )}
-              {currentStatus && (
-                <div className="flex items-center gap-2">
-                  <span className="hidden sm:inline text-slate-300">|</span>
-                  <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
-                      판단:
-                    </span>
-                    <span
-                      className="px-2 py-0.5 rounded-md text-[11px] font-black text-white uppercase tracking-wider shadow-sm"
-                      style={{ backgroundColor: currentStatus.color }}
-                    >
-                      {currentStatus.status}
-                    </span>
-                    <span className="text-[11px] font-bold text-slate-600 ml-1">
-                      {currentStatus.status === "Strong Buy"
-                        ? "적극 분할 매수 권장"
-                        : currentStatus.status === "Buy"
-                        ? "분할 매수 유효 구간"
-                        : currentStatus.status === "Neutral"
-                        ? "보유 및 추세 관망"
-                        : currentStatus.status === "Sell"
-                        ? "수익 실현 및 매도 고려"
-                        : "위험 관리 및 매도 권장"}
-                    </span>
+                {data?.timeSeries?.[0] && (
+                  <div className="flex items-center gap-2">
+                    <span className="hidden sm:inline text-slate-300">|</span>
+                    <div className="flex items-center gap-2 bg-blue-50/50 px-3 py-1 rounded-full border border-blue-100">
+                      <span className="text-[10px] font-bold text-blue-500 uppercase tracking-tight">
+                        예상 종가:
+                      </span>
+                      <span className="text-[11px] font-black text-blue-700">
+                        ${data.timeSeries[0].expectedPrice.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
-              {data?.timeSeries?.[0] && (
-                <div className="flex items-center gap-2">
-                  <span className="hidden sm:inline text-slate-300">|</span>
-                  <div className="flex items-center gap-2 bg-blue-50/50 px-3 py-1 rounded-full border border-blue-100">
-                    <span className="text-[10px] font-bold text-blue-500 uppercase tracking-tight">
-                      예상 종가:
-                    </span>
-                    <span className="text-[11px] font-black text-blue-700">
-                      ${data.timeSeries[0].expectedPrice.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>
