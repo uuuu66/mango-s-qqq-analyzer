@@ -62,6 +62,16 @@ const App: React.FC = () => {
   const [expirationType, setExpirationType] = useState<"weekly" | "monthly">(
     "weekly"
   );
+  const [qqqExpirationType, setQqqExpirationType] = useState<
+    "daily" | "weekly" | "monthly"
+  >("daily");
+  const [qqqExpirations, setQqqExpirations] = useState<string[]>([]);
+  const [qqqOptionsLoading, setQqqOptionsLoading] = useState(false);
+  const [qqqOptionsError, setQqqOptionsError] = useState<string | null>(null);
+  const [qqqSelectedExpiration, setQqqSelectedExpiration] =
+    useState<string | null>(null);
+  const [qqqOptionChain, setQqqOptionChain] =
+    useState<TickerOptionChain | null>(null);
   const pollingRef = useRef<number | null>(null);
   const tickerPollingRef = useRef<number | null>(null);
 
@@ -299,6 +309,49 @@ const App: React.FC = () => {
     []
   );
 
+  const loadQqqOptionExpirations = useCallback(
+    async (type: "daily" | "weekly" | "monthly") => {
+      setQqqOptionsError(null);
+      setQqqOptionsLoading(true);
+      try {
+        const result = await fetchTickerOptionExpirations("QQQ", type);
+        setQqqExpirations(result.expirations);
+        if (result.expirations.length > 0) {
+          setQqqSelectedExpiration(result.expirations[0]);
+        } else {
+          setQqqSelectedExpiration(null);
+          setQqqOptionChain(null);
+        }
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "QQQ 만기일 조회 실패";
+        setQqqOptionsError(message);
+      } finally {
+        setQqqOptionsLoading(false);
+      }
+    },
+    []
+  );
+
+  const loadQqqOptionChain = useCallback(
+    async (date: string, type: "daily" | "weekly" | "monthly") => {
+      setQqqOptionsError(null);
+      setQqqOptionsLoading(true);
+      try {
+        const result = await fetchTickerOptionChain("QQQ", date, type);
+        setQqqOptionChain(result);
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "QQQ 옵션 체인 조회 실패";
+        setQqqOptionsError(message);
+        setQqqOptionChain(null);
+      } finally {
+        setQqqOptionsLoading(false);
+      }
+    },
+    []
+  );
+
   const loadTickerOptionChain = useCallback(
     async (symbol: string, expiration: string, type: "weekly" | "monthly") => {
       setTickerOptionsLoading(true);
@@ -329,6 +382,10 @@ const App: React.FC = () => {
   }, [expirationType, loadTickerOptionExpirations, tickerAnalysis?.symbol]);
 
   useEffect(() => {
+    loadQqqOptionExpirations(qqqExpirationType);
+  }, [loadQqqOptionExpirations, qqqExpirationType]);
+
+  useEffect(() => {
     if (tickerAnalysis?.symbol && selectedExpiration) {
       loadTickerOptionChain(
         tickerAnalysis.symbol,
@@ -342,6 +399,12 @@ const App: React.FC = () => {
     selectedExpiration,
     tickerAnalysis?.symbol,
   ]);
+
+  useEffect(() => {
+    if (qqqSelectedExpiration) {
+      loadQqqOptionChain(qqqSelectedExpiration, qqqExpirationType);
+    }
+  }, [loadQqqOptionChain, qqqExpirationType, qqqSelectedExpiration]);
 
   const downloadAsText = useCallback(() => {
     if (!data) return;
@@ -989,6 +1052,229 @@ const App: React.FC = () => {
         </section>
       </div>
 
+      <div className="mt-10 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <Zap className="w-3.5 h-3.5 text-indigo-500" />
+              QQQ 만기 현황
+            </h4>
+            <div className="flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-0.5">
+              <button
+                type="button"
+                onClick={() => setQqqExpirationType("daily")}
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-colors ${
+                  qqqExpirationType === "daily"
+                    ? "bg-indigo-500 text-white"
+                    : "text-slate-500 hover:text-indigo-600"
+                }`}
+              >
+                Daily
+              </button>
+              <button
+                type="button"
+                onClick={() => setQqqExpirationType("weekly")}
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-colors ${
+                  qqqExpirationType === "weekly"
+                    ? "bg-indigo-500 text-white"
+                    : "text-slate-500 hover:text-indigo-600"
+                }`}
+              >
+                Weekly
+              </button>
+              <button
+                type="button"
+                onClick={() => setQqqExpirationType("monthly")}
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-colors ${
+                  qqqExpirationType === "monthly"
+                    ? "bg-indigo-500 text-white"
+                    : "text-slate-500 hover:text-indigo-600"
+                }`}
+              >
+                Monthly
+              </button>
+            </div>
+          </div>
+          <a
+            href="https://optioncharts.io/options/QQQ"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600 uppercase tracking-widest"
+          >
+            OptionCharts 보기
+          </a>
+        </div>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {qqqExpirations.length === 0 && !qqqOptionsLoading && (
+            <span className="text-xs text-slate-400">
+              만기일 정보를 불러오지 못했습니다.
+            </span>
+          )}
+          {qqqExpirations.map((exp) => (
+            <button
+              key={exp}
+              onClick={() => setQqqSelectedExpiration(exp)}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-black border transition-colors ${
+                qqqSelectedExpiration === exp
+                  ? "bg-indigo-500 text-white border-indigo-500"
+                  : "bg-white text-slate-500 border-slate-200 hover:border-indigo-200 hover:text-indigo-600"
+              }`}
+            >
+              {exp}
+            </button>
+          ))}
+        </div>
+        {qqqOptionsLoading && (
+          <div className="text-xs text-slate-400">옵션 데이터를 불러오는 중...</div>
+        )}
+        {qqqOptionsError && (
+          <div className="text-xs text-red-500">{qqqOptionsError}</div>
+        )}
+        {qqqOptionChain && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                만기일
+              </div>
+              <div className="text-lg font-black text-slate-700 dark:text-slate-100">
+                {qqqOptionChain.expirationDate}
+              </div>
+            </div>
+              <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                PCR
+              </div>
+              <div className="text-lg font-black text-slate-700 dark:text-slate-100">
+                {qqqOptionChain.summary.pcr.toFixed(2)}
+              </div>
+            </div>
+              <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900">
+              <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+                Call Wall
+              </div>
+              <div className="text-lg font-black text-emerald-600">
+                {qqqOptionChain.summary.callWall
+                  ? `$${qqqOptionChain.summary.callWall.toFixed(2)}`
+                  : "-"}
+              </div>
+            </div>
+              <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900">
+              <div className="text-[10px] font-bold text-rose-600 uppercase tracking-widest">
+                Put Wall
+              </div>
+              <div className="text-lg font-black text-rose-600">
+                {qqqOptionChain.summary.putWall
+                  ? `$${qqqOptionChain.summary.putWall.toFixed(2)}`
+                  : "-"}
+              </div>
+            </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                <div className="px-4 py-3 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-200 text-xs font-bold uppercase tracking-widest">
+                  Calls
+                </div>
+                <div className="max-h-[320px] overflow-y-auto">
+                  <table className="w-full text-[11px]">
+                    <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Strike</th>
+                        <th className="px-4 py-2 text-right">Last</th>
+                        <th className="px-4 py-2 text-right">OI</th>
+                        <th className="px-4 py-2 text-right">Volume</th>
+                        <th className="px-4 py-2 text-right">IV</th>
+                        <th className="px-4 py-2 text-right">ITM</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {qqqOptionChain.calls
+                        .slice()
+                        .sort((a, b) => b.openInterest - a.openInterest)
+                        .map((opt, idx) => (
+                          <tr
+                            key={`${opt.strike}-${idx}`}
+                            className="border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-200"
+                          >
+                            <td className="px-4 py-2 font-mono">
+                              ${opt.strike.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-2 text-right font-mono">
+                              ${opt.lastPrice.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-2 text-right font-mono">
+                              {opt.openInterest.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-right font-mono">
+                              {opt.volume.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-right font-mono">
+                              {(opt.impliedVolatility * 100).toFixed(1)}%
+                            </td>
+                            <td className="px-4 py-2 text-right font-mono">
+                              {opt.inTheMoney ? "Y" : "N"}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                <div className="px-4 py-3 bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-200 text-xs font-bold uppercase tracking-widest">
+                  Puts
+                </div>
+                <div className="max-h-[320px] overflow-y-auto">
+                  <table className="w-full text-[11px]">
+                    <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Strike</th>
+                        <th className="px-4 py-2 text-right">Last</th>
+                        <th className="px-4 py-2 text-right">OI</th>
+                        <th className="px-4 py-2 text-right">Volume</th>
+                        <th className="px-4 py-2 text-right">IV</th>
+                        <th className="px-4 py-2 text-right">ITM</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {qqqOptionChain.puts
+                        .slice()
+                        .sort((a, b) => b.openInterest - a.openInterest)
+                        .map((opt, idx) => (
+                          <tr
+                            key={`${opt.strike}-${idx}`}
+                            className="border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-200"
+                          >
+                            <td className="px-4 py-2 font-mono">
+                              ${opt.strike.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-2 text-right font-mono">
+                              ${opt.lastPrice.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-2 text-right font-mono">
+                              {opt.openInterest.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-right font-mono">
+                              {opt.volume.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-right font-mono">
+                              {(opt.impliedVolatility * 100).toFixed(1)}%
+                            </td>
+                            <td className="px-4 py-2 text-right font-mono">
+                              {opt.inTheMoney ? "Y" : "N"}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
         <div className="bg-black p-6 rounded-2xl border border-slate-700">
           <h3 className="text-lg font-bold text-emerald-400 mb-6 flex items-center gap-2">
@@ -1253,12 +1539,27 @@ const App: React.FC = () => {
           </h3>
           <div className="space-y-4">
             {data?.timeSeries?.slice(0, 5).map((item, idx) => {
-              const rawP1 = Math.max(item.putSupport, item.expectedLower);
-              const rawP2 = Math.min(item.callResistance, item.expectedUpper);
-              const buyPrice = Math.min(rawP1, rawP2);
-              const sellPrice = Math.max(rawP1, rawP2);
-              const targetPrice = sellPrice * 0.997;
-              const profit = ((targetPrice - buyPrice) / buyPrice) * 100;
+              const buyRangeLow = Math.min(
+                item.putSupport,
+                item.expectedLower
+              );
+              const buyRangeHigh = Math.max(
+                item.putSupport,
+                item.expectedLower
+              );
+              const sellRangeLow = Math.min(
+                item.callResistance,
+                item.expectedUpper
+              );
+              const sellRangeHigh = Math.max(
+                item.callResistance,
+                item.expectedUpper
+              );
+              const targetPrice = sellRangeLow * 0.997;
+              const profit =
+                buyRangeHigh > 0
+                  ? ((targetPrice - buyRangeHigh) / buyRangeHigh) * 100
+                  : 0;
 
               return (
                 <div
@@ -1271,11 +1572,11 @@ const App: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <span className="font-bold text-emerald-400">
-                        Buy @ ${buyPrice?.toFixed(2)}
+                        Buy ${buyRangeLow.toFixed(2)} ~ ${buyRangeHigh.toFixed(2)}
                       </span>
                       <span className="text-emerald-300">→</span>
                       <span className="font-bold text-emerald-400">
-                        Sell @ ${targetPrice?.toFixed(2)}
+                        Sell ${sellRangeLow.toFixed(2)} ~ ${sellRangeHigh.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex gap-1 h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-slate-800 mt-2">
@@ -2028,21 +2329,29 @@ const App: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {tickerAnalysis.timeSeries?.slice(0, 5).map((item, idx) => {
                     // ✅ 항상 낮은 가격을 buyPrice, 높은 가격을 sellPrice로 설정 (Long 관점 스캘핑)
-                    const rawP1 = Math.max(
+                    const buyRangeLow = Math.min(
                       item.expectedSupport,
                       item.expectedLower
                     );
-                    const rawP2 = Math.min(
+                    const buyRangeHigh = Math.max(
+                      item.expectedSupport,
+                      item.expectedLower
+                    );
+                    const sellRangeLow = Math.min(
+                      item.expectedResistance,
+                      item.expectedUpper
+                    );
+                    const sellRangeHigh = Math.max(
                       item.expectedResistance,
                       item.expectedUpper
                     );
 
-                    const buyPrice = Math.min(rawP1, rawP2);
-                    const sellPrice = Math.max(rawP1, rawP2);
-
-                    // 스캘핑이므로 목표가를 저항선보다 약간 더 보수적으로(99.7%) 잡음
-                    const targetPrice = sellPrice * 0.997;
-                    const profit = ((targetPrice - buyPrice) / buyPrice) * 100;
+                    // 스캘핑이므로 목표가는 보수적으로 하단 사용
+                    const targetPrice = sellRangeLow * 0.997;
+                    const profit =
+                      buyRangeHigh > 0
+                        ? ((targetPrice - buyRangeHigh) / buyRangeHigh) * 100
+                        : 0;
 
                     return (
                       <div
@@ -2055,11 +2364,11 @@ const App: React.FC = () => {
                           </div>
                           <div className="text-[10px] font-mono flex items-center gap-1.5 mb-2">
                             <span className="text-blue-600 font-bold">
-                              Buy @ ${buyPrice.toFixed(2)}
+                              Buy ${buyRangeLow.toFixed(2)} ~ ${buyRangeHigh.toFixed(2)}
                             </span>
                             <span className="text-slate-300">→</span>
                             <span className="text-red-600 font-bold">
-                              ${targetPrice.toFixed(2)}
+                              Sell ${sellRangeLow.toFixed(2)} ~ ${sellRangeHigh.toFixed(2)}
                             </span>
                           </div>
                           <div className="flex gap-1 h-1 w-full max-w-[80px] rounded-full overflow-hidden bg-slate-100">

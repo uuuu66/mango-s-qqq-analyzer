@@ -247,7 +247,7 @@ export const fetchQQQData = async (): Promise<AnalysisResult> => {
 
 export const fetchTickerOptionExpirations = async (
   symbol: string,
-  type: "weekly" | "monthly"
+  type: "daily" | "weekly" | "monthly"
 ): Promise<TickerOptionExpirationList> => {
   const response = await fetch(
     `/api/ticker-options/expirations?symbol=${encodeURIComponent(
@@ -264,7 +264,7 @@ export const fetchTickerOptionExpirations = async (
 export const fetchTickerOptionChain = async (
   symbol: string,
   date: string,
-  type: "weekly" | "monthly"
+  type: "daily" | "weekly" | "monthly"
 ): Promise<TickerOptionChain> => {
   const response = await fetch(
     `/api/ticker-options/expiration?symbol=${encodeURIComponent(

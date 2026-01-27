@@ -47,6 +47,11 @@ const isMonthlyExpiration = (date: Date) => {
   return d.day() === 5 && isThirdFriday(date);
 };
 
+const isDailyExpiration = (date: Date, now: dayjs.Dayjs) => {
+  const expStr = dayjs(date).utc().format("YYYY-MM-DD");
+  return expStr === now.format("YYYY-MM-DD");
+};
+
 /**
  * 사용자 지정 기간 히스토리 데이터를 기반으로 베타계수 직접 계산
  */
@@ -1374,8 +1379,13 @@ app.get("/api/ticker-options/expirations", async (req: Request, res: Response) =
 
   try {
     const optionChain = await yahooFinance.options(symbol);
+    const now = dayjs().tz("America/New_York");
     const expirationFilter =
-      type === "monthly" ? isMonthlyExpiration : isWeeklyExpiration;
+      type === "daily"
+        ? (d: Date) => isDailyExpiration(d, now)
+        : type === "monthly"
+        ? isMonthlyExpiration
+        : isWeeklyExpiration;
     const expirations = (optionChain?.expirationDates || [])
       .filter((d) => expirationFilter(d as Date))
       .map((d) => formatExpirationDate(d as Date));
@@ -1406,8 +1416,13 @@ app.get("/api/ticker-options/expiration", async (req: Request, res: Response) =>
   try {
     const optionChain = await yahooFinance.options(symbol);
     const expirationDates = optionChain?.expirationDates || [];
+    const now = dayjs().tz("America/New_York");
     const expirationFilter =
-      type === "monthly" ? isMonthlyExpiration : isWeeklyExpiration;
+      type === "daily"
+        ? (d: Date) => isDailyExpiration(d, now)
+        : type === "monthly"
+        ? isMonthlyExpiration
+        : isWeeklyExpiration;
     const targetDate = expirationDates.find(
       (d) =>
         expirationFilter(d as Date) && formatExpirationDate(d as Date) === date
