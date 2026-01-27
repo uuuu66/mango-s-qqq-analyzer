@@ -147,6 +147,8 @@ interface ExpirationAnalysis {
   isoDate: string; // ISO 형식의 전체 날짜 (요일 계산용)
   callResistance: number;
   putSupport: number;
+  callWallOI: number; // Call Wall의 OI
+  putWallOI: number; // Put Wall의 OI
   gammaFlip: number;
   volTrigger: number;
   callGex: number;
@@ -165,6 +167,26 @@ interface ExpirationAnalysis {
   options: ProcessedOption[];
   expectedUpper: number; // 1-SD 상단
   expectedLower: number; // 1-SD 하단
+  // 경고 시스템: 현재가가 Call Wall 근처에 있고 Put OI가 많으면 숏 찬스
+  trapWarning?: {
+    isNearCallWall: boolean;
+    putOIDominance: boolean;
+    message: string;
+  };
+  // 전일 대비 OI 변화율
+  oiChange?: {
+    callWallOIChange: number | null;
+    putWallOIChange: number | null;
+    totalCallOIChange: number | null;
+    totalPutOIChange: number | null;
+  };
+  // Volume/OI 비율 (새 포지션 vs 롤오버 판단)
+  volumeOIRatio?: {
+    callWall: number;
+    putWall: number;
+    totalCall: number;
+    totalPut: number;
+  };
 }
 
 interface TickerTimeSeriesData {
@@ -319,6 +341,51 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       );
     }
 
+    // VIX 지수 데이터 가져오기 (현재값만, 각 만기일별로는 나중에 계산)
+    let currentVix: number | null = null;
+    try {
+      const vixQuote = await yahooFinance.quote("^VIX");
+      currentVix =
+        vixQuote.regularMarketPrice ??
+        vixQuote.regularMarketPreviousClose ??
+        null;
+      if (currentVix !== null) {
+        addLog(`VIX: ${currentVix.toFixed(2)}`);
+      }
+    } catch (error) {
+      addLog(
+        `[Warning] VIX quote failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+
+    // ✅ VIX 히스토리 데이터 가져오기 (과거 날짜용)
+    const vixHistoryMap = new Map<string, number>();
+    try {
+      const vixChart = await yahooFinance.chart("^VIX", {
+        period1: now.subtract(60, "day").format("YYYY-MM-DD"),
+        period2: now.format("YYYY-MM-DD"),
+        interval: "1d",
+      });
+      if (vixChart.quotes) {
+        vixChart.quotes.forEach((q) => {
+          const dateStr = dayjs(q.date).format("YYYY-MM-DD");
+          const vixValue = q.close ?? q.adjclose ?? null;
+          if (vixValue !== null) {
+            vixHistoryMap.set(dateStr, vixValue);
+          }
+        });
+        addLog(`VIX 히스토리: ${vixHistoryMap.size}일치 데이터 로드`);
+      }
+    } catch (error) {
+      addLog(
+        `[Warning] VIX history failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+
     diagnostics.step = "fetch_expiration_dates";
     addLog("QQQ 옵션 만기일 목록 가져오는 중...");
     const optionChain = await yahooFinance.options("QQQ");
@@ -339,8 +406,117 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     const todayStart = now.startOf("day");
     const filterLimit = todayStart.add(30, "day");
 
+    // ✅ 전일 날짜 계산 (거래일 기준, 주말/공휴일 제외)
+    let previousTradingDay = now.subtract(1, "day");
+    // 주말이면 금요일로, 월요일이면 금요일로
+    while (previousTradingDay.day() === 0 || previousTradingDay.day() === 6) {
+      previousTradingDay = previousTradingDay.subtract(1, "day");
+    }
+    const previousTradingDayStr = previousTradingDay.format("YYYY-MM-DD");
+    addLog(`전일 거래일: ${previousTradingDayStr}`);
+
+    // ✅ 전일 옵션 데이터 가져오기 (첫 번째 만기일 기준)
+    let previousDayData: {
+      callWallOI: number;
+      putWallOI: number;
+      totalCallOI: number;
+      totalPutOI: number;
+    } | null = null;
+    try {
+      const prevOptionChain = await yahooFinance.options("QQQ");
+      if (prevOptionChain?.expirationDates?.length > 0) {
+        // 전일의 첫 번째 만기일 (오늘 만기일과 동일할 가능성 높음)
+        const prevFirstExp = prevOptionChain.expirationDates[0];
+        const prevDetails = await yahooFinance.options("QQQ", {
+          date: prevFirstExp as Date,
+        });
+        const prevExpData = prevDetails?.options?.[0];
+        if (prevExpData) {
+          const prevCalls = prevExpData.calls || [];
+          const prevPuts = prevExpData.puts || [];
+          const prevCallOI = prevCalls.reduce(
+            (acc, opt) => acc + (Number(opt.openInterest) || 0),
+            0
+          );
+          const prevPutOI = prevPuts.reduce(
+            (acc, opt) => acc + (Number(opt.openInterest) || 0),
+            0
+          );
+          // 전일 Call/Put Wall 찾기
+          const prevCallWall = prevCalls
+            .filter((c) => Number(c.strike) >= currentPrice * 0.95)
+            .reduce(
+              (p, c) =>
+                (Number(c.openInterest) || 0) > (Number(p.openInterest) || 0)
+                  ? c
+                  : p,
+              prevCalls[0]
+            );
+          const prevPutWall = prevPuts
+            .filter((p) => Number(p.strike) <= currentPrice * 1.05)
+            .reduce(
+              (p, c) =>
+                (Number(c.openInterest) || 0) > (Number(p.openInterest) || 0)
+                  ? c
+                  : p,
+              prevPuts[0]
+            );
+          previousDayData = {
+            callWallOI: Number(prevCallWall?.openInterest) || 0,
+            putWallOI: Number(prevPutWall?.openInterest) || 0,
+            totalCallOI: prevCallOI,
+            totalPutOI: prevPutOI,
+          };
+          addLog(
+            `전일 데이터: Call OI=${prevCallOI.toLocaleString()}, Put OI=${prevPutOI.toLocaleString()}`
+          );
+        }
+      }
+    } catch (error) {
+      addLog(
+        `[Warning] 전일 데이터 가져오기 실패: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+
+    // ✅ IB 영역 계산 (장 시작 30분 고점/저점)
+    let ibHigh: number | null = null;
+    let ibLow: number | null = null;
+    try {
+      const todayStr = now.format("YYYY-MM-DD");
+      const chartData = await yahooFinance.chart("QQQ", {
+        period1: todayStr,
+        period2: todayStr,
+        interval: "1m",
+      });
+      if (chartData.quotes && chartData.quotes.length > 0) {
+        // 장 시작 시간 (9:30 AM ET)
+        const marketOpen = now.hour(9).minute(30).second(0);
+        const ibEndTime = marketOpen.add(30, "minute"); // 10:00 AM
+        const ibQuotes = chartData.quotes.filter((q) => {
+          const quoteTime = dayjs(q.date);
+          // 9:30 AM 이후부터 10:00 AM까지 포함 (30분간)
+          return (
+            quoteTime.isAfter(marketOpen) || quoteTime.isSame(marketOpen)
+          ) && (quoteTime.isBefore(ibEndTime) || quoteTime.isSame(ibEndTime));
+        });
+        if (ibQuotes.length > 0) {
+          ibHigh = Math.max(...ibQuotes.map((q) => q.high || q.close || 0));
+          ibLow = Math.min(...ibQuotes.map((q) => q.low || q.close || 0));
+          addLog(`IB 영역: High=${ibHigh.toFixed(2)}, Low=${ibLow.toFixed(2)}`);
+        }
+      }
+    } catch (error) {
+      addLog(
+        `[Warning] IB 영역 계산 실패: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+
     // ✅ 진단 로그 강화
-    const buildVersion = "2026-01-13-v3";
+    const buildVersion = "2026-01-13-v4";
     addLog(`[System] Version: ${buildVersion}`);
     addLog(`[System] NY Current: ${now.format("YYYY-MM-DD HH:mm:ss")}`);
 
@@ -494,14 +670,67 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 
           // ✅ Put Wall: 현재가보다 낮은 행사가 중 미결제약정(OI)이 가장 큰 지점 (강한 지지선)
           const putOptions = puts.filter((p) => p.strike <= currentPrice);
-          const putWall =
+          const putWallOption =
             putOptions.length > 0
               ? putOptions.reduce(
                   (p, c) =>
                     (c.openInterest ?? 0) > (p.openInterest ?? 0) ? c : p,
                   putOptions[0]
-                ).strike
-              : currentPrice * 0.98;
+                )
+              : null;
+          const putWall = putWallOption?.strike ?? currentPrice * 0.98;
+          const putWallOI = putWallOption?.openInterest ?? 0;
+
+          // ✅ Call Wall OI 추출
+          const callWallOption =
+            callOptions.length > 0
+              ? callOptions.reduce(
+                  (p, c) =>
+                    (c.openInterest ?? 0) > (p.openInterest ?? 0) ? c : p,
+                  callOptions[0]
+                )
+              : null;
+          const callWallOI = callWallOption?.openInterest ?? 0;
+          const callWallVolume = callWallOption?.volume ?? 0;
+
+          // ✅ Put Wall Volume 추출
+          const putWallVolume = putWallOption?.volume ?? 0;
+
+          // ✅ 전일 대비 OI 변화율 계산
+          const oiChange = {
+            callWallOIChange:
+              previousDayData && previousDayData.callWallOI > 0
+                ? ((callWallOI - previousDayData.callWallOI) /
+                    previousDayData.callWallOI) *
+                  100
+                : null,
+            putWallOIChange:
+              previousDayData && previousDayData.putWallOI > 0
+                ? ((putWallOI - previousDayData.putWallOI) /
+                    previousDayData.putWallOI) *
+                  100
+                : null,
+            totalCallOIChange:
+              previousDayData && previousDayData.totalCallOI > 0
+                ? ((filteredCallOI - previousDayData.totalCallOI) /
+                    previousDayData.totalCallOI) *
+                  100
+                : null,
+            totalPutOIChange:
+              previousDayData && previousDayData.totalPutOI > 0
+                ? ((filteredPutOI - previousDayData.totalPutOI) /
+                    previousDayData.totalPutOI) *
+                  100
+                : null,
+          };
+
+          // ✅ Volume/OI 비율 계산 (새 포지션 vs 롤오버 판단)
+          const volumeOIRatio = {
+            callWall: callWallOI > 0 ? callWallVolume / callWallOI : 0,
+            putWall: putWallOI > 0 ? putWallVolume / putWallOI : 0,
+            totalCall: filteredCallOI > 0 ? calls.reduce((acc, opt) => acc + (opt.volume || 0), 0) / filteredCallOI : 0,
+            totalPut: filteredPutOI > 0 ? puts.reduce((acc, opt) => acc + (opt.volume || 0), 0) / filteredPutOI : 0,
+          };
 
           const callGex = calls.reduce((acc, opt) => acc + (opt.gex || 0), 0);
           const putGex = puts.reduce((acc, opt) => acc + (opt.gex || 0), 0);
@@ -572,11 +801,26 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             totalGex,
           });
 
+          // ✅ 트랩 경고 시스템: 현재가가 Call Wall 근처에 있고 Put OI가 많으면 경고
+          const priceToCallWallRatio = (currentPrice - callWall) / currentPrice;
+          const isNearCallWall = Math.abs(priceToCallWallRatio) < 0.01; // 1% 이내
+          const putOIDominance = putWallOI > callWallOI * 1.5; // Put OI가 Call OI의 1.5배 이상
+          const trapWarning =
+            isNearCallWall && putOIDominance
+              ? {
+                  isNearCallWall: true,
+                  putOIDominance: true,
+                  message: `⚠️ 주의: 현재가($${currentPrice.toFixed(2)})가 Call Wall($${callWall.toFixed(2)}) 근처입니다. Put OI(${putWallOI.toLocaleString()})가 Call OI(${callWallOI.toLocaleString()})보다 ${((putWallOI / callWallOI) * 100).toFixed(0)}% 많습니다. 가짜 상승일 수 있으니 숏 찬스를 고려하세요.`,
+                }
+              : undefined;
+
           return {
             date: expDateStr.split("-").slice(1).join("/"), // "MM/DD" 형식으로 직접 추출
             isoDate: dateObj.toISOString(),
             callResistance: callWall,
             putSupport: putWall,
+            callWallOI,
+            putWallOI,
             gammaFlip,
             volTrigger,
             callGex,
@@ -595,6 +839,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             options: [...calls, ...puts],
             expectedUpper,
             expectedLower,
+            trapWarning,
+            oiChange,
+            volumeOIRatio,
           };
         } catch (e: unknown) {
           diagnostics.details.push({
@@ -914,25 +1161,51 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       marketRegime: currentPrice > globalGammaFlip ? "Stabilizing" : "Volatile",
       gammaFlip: globalGammaFlip, // ✅ 통합 글로벌 플립 적용
       volTrigger: globalVolTrigger, // ✅ 통합 글로벌 트리거 적용
-      timeSeries: validResults.map((result) => ({
-        date: result.date,
-        isoDate: result.isoDate,
-        callResistance: result.callResistance,
-        putSupport: result.putSupport,
-        gammaFlip: result.gammaFlip,
-        volTrigger: result.volTrigger,
-        callGex: result.callGex,
-        putGex: result.putGex,
-        totalGex: result.totalGex,
-        pcrAll: result.pcrAll,
-        pcrFiltered: result.pcrFiltered,
-        sentiment: result.sentiment,
-        profitPotential: result.profitPotential,
-        expectedPrice: result.expectedPrice,
-        priceProbability: result.priceProbability,
-        expectedUpper: result.expectedUpper,
-        expectedLower: result.expectedLower,
-      })),
+      timeSeries: validResults.map((result) => {
+        // ✅ 각 만기일 날짜에 해당하는 VIX 가져오기
+        const expDateStr = dayjs(result.isoDate).format("YYYY-MM-DD");
+        const todayStr = now.format("YYYY-MM-DD");
+        
+        let vixForDate: number | null = null;
+        
+        // 만기일이 오늘 이전이면 해당 날짜의 VIX 사용
+        if (expDateStr < todayStr) {
+          vixForDate = vixHistoryMap.get(expDateStr) ?? null;
+        } else if (expDateStr === todayStr) {
+          // 오늘이면 현재 VIX 사용
+          vixForDate = currentVix;
+        } else {
+          // 미래 날짜면 null (VIX는 미래를 알 수 없음)
+          vixForDate = null;
+        }
+        
+        return {
+          date: result.date,
+          isoDate: result.isoDate,
+          callResistance: result.callResistance,
+          putSupport: result.putSupport,
+          callWallOI: result.callWallOI,
+          putWallOI: result.putWallOI,
+          gammaFlip: result.gammaFlip,
+          volTrigger: result.volTrigger,
+          callGex: result.callGex,
+          putGex: result.putGex,
+          totalGex: result.totalGex,
+          pcrAll: result.pcrAll,
+          pcrFiltered: result.pcrFiltered,
+          sentiment: result.sentiment,
+          profitPotential: result.profitPotential,
+          expectedPrice: result.expectedPrice,
+          priceProbability: result.priceProbability,
+          expectedUpper: result.expectedUpper,
+          expectedLower: result.expectedLower,
+          vix: vixForDate, // 각 만기일 날짜에 해당하는 VIX
+          trapWarning: result.trapWarning, // 트랩 경고 추가
+          oiChange: result.oiChange, // 전일 대비 OI 변화율
+          volumeOIRatio: result.volumeOIRatio, // Volume/OI 비율
+        };
+      }),
+      ibZone: ibHigh && ibLow ? { high: ibHigh, low: ibLow } : null, // IB 영역
       callResistance: aggResistance,
       putSupport: aggSupport,
       totalGex: validResults[0].totalGex,
