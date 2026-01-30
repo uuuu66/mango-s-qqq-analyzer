@@ -919,7 +919,7 @@ const App: React.FC = () => {
                   className={`px-3 py-1 rounded-full text-[11px] font-black border transition-colors ${
                     sortBy === "oi"
                       ? "selected-nav-button text-white border-slate-900"
-                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
+                      : "bg-white text-slate-500 border-black hover:border-slate-300 hover:text-slate-700"
                   }`}
                 >
                   OI 기준
@@ -932,7 +932,7 @@ const App: React.FC = () => {
                   className={`px-3 py-1 rounded-full text-[11px] font-black border transition-colors ${
                     sortBy === "volume"
                       ? "selected-nav-button  text-white border-slate-900"
-                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
+                      : "bg-white text-slate-500 border-black hover:border-slate-300 hover:text-slate-700"
                   }`}
                 >
                   Volume 기준
