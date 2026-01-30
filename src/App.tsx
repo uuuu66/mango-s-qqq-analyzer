@@ -197,6 +197,16 @@ const App: React.FC = () => {
   const setQqqSelectedExpiration = (exp: string | null) =>
     setSelectedExpirationBySymbol((prev) => ({ ...prev, QQQ: exp }));
   const qqqOptionChain = optionChainBySymbol.QQQ;
+  const [optionsSortBy, setOptionsSortBy] = useState<
+    Record<(typeof ASSET_TABS)[number], "oi" | "volume">
+  >({
+    QQQ: "oi",
+    GLD: "oi",
+    SLV: "oi",
+    VXX: "oi",
+    UVXY: "oi",
+    BTC: "oi",
+  });
   const assetSectionRefs = useRef<
     Record<(typeof ASSET_TABS)[number], HTMLElement | null>
   >({
@@ -542,6 +552,7 @@ const App: React.FC = () => {
     const optionChain = optionChainBySymbol[symbol];
     const optionsLoading = optionsLoadingBySymbol[symbol];
     const optionsError = optionsErrorBySymbol[symbol];
+    const sortBy = optionsSortBy[symbol];
 
     return (
       <section
@@ -899,6 +910,34 @@ const App: React.FC = () => {
                   </button>
                 ))}
               </div>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOptionsSortBy((prev) => ({ ...prev, [symbol]: "oi" }))
+                  }
+                  className={`px-3 py-1 rounded-full text-[11px] font-black border transition-colors ${
+                    sortBy === "oi"
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
+                  }`}
+                >
+                  OI 기준
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOptionsSortBy((prev) => ({ ...prev, [symbol]: "volume" }))
+                  }
+                  className={`px-3 py-1 rounded-full text-[11px] font-black border transition-colors ${
+                    sortBy === "volume"
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
+                  }`}
+                >
+                  Volume 기준
+                </button>
+              </div>
               {optionsLoading && (
                 <div className="text-xs text-slate-400">옵션 데이터를 불러오는 중...</div>
               )}
@@ -965,7 +1004,11 @@ const App: React.FC = () => {
                           <tbody>
                             {optionChain.calls
                               .slice()
-                              .sort((a, b) => b.openInterest - a.openInterest)
+                              .sort((a, b) =>
+                                sortBy === "volume"
+                                  ? b.volume - a.volume
+                                  : b.openInterest - a.openInterest
+                              )
                               .map((opt, idx) => (
                                 <tr
                                   key={`${opt.strike}-${idx}`}
@@ -1015,7 +1058,11 @@ const App: React.FC = () => {
                           <tbody>
                             {optionChain.puts
                               .slice()
-                              .sort((a, b) => b.openInterest - a.openInterest)
+                              .sort((a, b) =>
+                                sortBy === "volume"
+                                  ? b.volume - a.volume
+                                  : b.openInterest - a.openInterest
+                              )
                               .map((opt, idx) => (
                                 <tr
                                   key={`${opt.strike}-${idx}`}
@@ -1237,30 +1284,42 @@ const App: React.FC = () => {
   }, [loadData]);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort(
-            (a, b) => (b.intersectionRatio || 0) - (a.intersectionRatio || 0)
-          );
-        if (visible.length === 0) return;
-        const symbol = visible[0].target.getAttribute("data-symbol") as
-          | (typeof ASSET_TABS)[number]
-          | null;
-        if (symbol) {
-          setActiveNavSymbol(symbol);
-        }
-      },
-      { rootMargin: "-30% 0px -60% 0px", threshold: [0.1, 0.5, 0.9] }
-    );
+    let rafId: number | null = null;
 
-    ASSET_TABS.forEach((symbol) => {
-      const el = assetSectionRefs.current[symbol];
-      if (el) observer.observe(el);
-    });
+    const updateActiveNav = () => {
+      const candidates = ASSET_TABS.map((symbol) => {
+        const el = assetSectionRefs.current[symbol];
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
+        return { symbol, top: rect.top };
+      }).filter(Boolean) as { symbol: (typeof ASSET_TABS)[number]; top: number }[];
 
-    return () => observer.disconnect();
+      if (candidates.length === 0) return;
+      const sorted = candidates.sort(
+        (a, b) => Math.abs(a.top) - Math.abs(b.top)
+      );
+      setActiveNavSymbol(sorted[0].symbol);
+    };
+
+    const onScroll = () => {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(() => {
+        updateActiveNav();
+        rafId = null;
+      });
+    };
+
+    updateActiveNav();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
   }, []);
 
   const getCurrentStatus = () => {
