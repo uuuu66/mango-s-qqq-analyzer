@@ -29,6 +29,48 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const isRateLimitError = (error: unknown) => {
+  if (!error) return false;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : JSON.stringify(error);
+  return /too many requests|rate limit|http\s*429|edge: too many requests/i.test(
+    message
+  );
+};
+
+const withRetry = async <T,>(
+  fn: () => Promise<T>,
+  label: string,
+  onRetry?: (message: string) => void,
+  retries: number = 2,
+  baseDelayMs: number = 400
+): Promise<T> => {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (!isRateLimitError(error) || attempt >= retries) {
+        throw error;
+      }
+      const delay =
+        baseDelayMs * Math.pow(2, attempt) + Math.round(Math.random() * 150);
+      const msg = `[RateLimit] ${label} retrying in ${delay}ms`;
+      if (onRetry) onRetry(msg);
+      else console.warn(msg);
+      await sleep(delay);
+      attempt += 1;
+    }
+  }
+};
+
 const formatExpirationDate = (date: Date) =>
   dayjs(date).utc().format("YYYY-MM-DD");
 
@@ -69,16 +111,24 @@ const calculateManualBeta = async (
     const period2 = now.format("YYYY-MM-DD");
 
     const [tickerResult, benchmarkResult] = await Promise.all([
-      yahooFinance.chart(symbol, {
-        period1,
-        period2,
-        interval: "1d",
-      }),
-      yahooFinance.chart(benchmarkSymbol, {
-        period1,
-        period2,
-        interval: "1d",
-      }),
+      withRetry(
+        () =>
+          yahooFinance.chart(symbol, {
+            period1,
+            period2,
+            interval: "1d",
+          }),
+        `${symbol} chart`
+      ),
+      withRetry(
+        () =>
+          yahooFinance.chart(benchmarkSymbol, {
+            period1,
+            period2,
+            interval: "1d",
+          }),
+        `${benchmarkSymbol} chart`
+      ),
     ]);
 
     const tickerQuotes = tickerResult.quotes || [];
@@ -168,20 +218,20 @@ interface ExpirationAnalysis {
   expectedUpper: number; // 1-SD 상단
   expectedLower: number; // 1-SD 하단
   // 경고 시스템: 현재가가 Call Wall 근처에 있고 Put OI가 많으면 숏 찬스
-  trapWarning?: {
+  trapWarning: {
     isNearCallWall: boolean;
     putOIDominance: boolean;
     message: string;
-  };
+  } | undefined;
   // 전일 대비 OI 변화율
-  oiChange?: {
+  oiChange: {
     callWallOIChange: number | null;
     putWallOIChange: number | null;
     totalCallOIChange: number | null;
     totalPutOIChange: number | null;
   };
   // Volume/OI 비율 (새 포지션 vs 롤오버 판단)
-  volumeOIRatio?: {
+  volumeOIRatio: {
     callWall: number;
     putWall: number;
     totalCall: number;
@@ -296,7 +346,7 @@ interface TickerOptionRow {
   inTheMoney: boolean;
 }
 
-app.get("/api/analysis", async (_request: Request, response: Response) => {
+app.get("/api/analysis", async (request: Request, response: Response) => {
   const diagnostics: Diagnostics = {
     step: "init",
     currentPrice: null,
@@ -311,40 +361,57 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
   };
 
   try {
+    const symbol = String(request.query.symbol || "QQQ").trim().toUpperCase();
     diagnostics.step = "fetch_quote";
-    addLog("QQQ 시세 데이터 가져오는 중...");
-    const quote = await yahooFinance.quote("QQQ");
+    addLog(`${symbol} 시세 데이터 가져오는 중...`);
+    const quote = await withRetry(
+      () => yahooFinance.quote(symbol),
+      `${symbol} quote`,
+      addLog
+    );
     const currentPrice = quote.regularMarketPrice || 0;
+    const changePercent = quote.regularMarketChangePercent || 0;
     const dataTimestamp = quote.regularMarketTime
       ? new Date(quote.regularMarketTime).toISOString()
       : new Date().toISOString();
     diagnostics.currentPrice = currentPrice;
     addLog(`현재가: $${currentPrice.toFixed(2)}`);
+    const now = dayjs().tz("America/New_York");
 
     let nasdaqFuturesPrice: number | null = null;
     let qqqToNasdaqFuturesRatio: number | null = null;
-    try {
-      const nqQuote = await yahooFinance.quote("NQ=F");
-      const nqPrice =
-        nqQuote.regularMarketPrice ?? nqQuote.regularMarketPreviousClose ?? 0;
-      if (nqPrice > 0) {
-        nasdaqFuturesPrice = nqPrice;
-        if (currentPrice > 0) {
-          qqqToNasdaqFuturesRatio = nqPrice / currentPrice;
+    if (symbol === "QQQ") {
+      try {
+        const nqQuote = await withRetry(
+          () => yahooFinance.quote("NQ=F"),
+          "NQ=F quote",
+          addLog
+        );
+        const nqPrice =
+          nqQuote.regularMarketPrice ?? nqQuote.regularMarketPreviousClose ?? 0;
+        if (nqPrice > 0) {
+          nasdaqFuturesPrice = nqPrice;
+          if (currentPrice > 0) {
+            qqqToNasdaqFuturesRatio = nqPrice / currentPrice;
+          }
         }
+      } catch (error) {
+        addLog(
+          `[Warning] NQ=F quote failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
       }
-    } catch (error) {
-      addLog(
-        `[Warning] NQ=F quote failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
     }
 
     // VIX 지수 데이터 가져오기 (현재값만, 각 만기일별로는 나중에 계산)
     let currentVix: number | null = null;
     try {
-      const vixQuote = await yahooFinance.quote("^VIX");
+      const vixQuote = await withRetry(
+        () => yahooFinance.quote("^VIX"),
+        "^VIX quote",
+        addLog
+      );
       currentVix =
         vixQuote.regularMarketPrice ??
         vixQuote.regularMarketPreviousClose ??
@@ -363,11 +430,16 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     // ✅ VIX 히스토리 데이터 가져오기 (과거 날짜용)
     const vixHistoryMap = new Map<string, number>();
     try {
-      const vixChart = await yahooFinance.chart("^VIX", {
-        period1: now.subtract(60, "day").format("YYYY-MM-DD"),
-        period2: now.format("YYYY-MM-DD"),
-        interval: "1d",
-      });
+      const vixChart = await withRetry(
+        () =>
+          yahooFinance.chart("^VIX", {
+            period1: now.subtract(60, "day").format("YYYY-MM-DD"),
+            period2: now.format("YYYY-MM-DD"),
+            interval: "1d",
+          }),
+        "^VIX chart",
+        addLog
+      );
       if (vixChart.quotes) {
         vixChart.quotes.forEach((q) => {
           const dateStr = dayjs(q.date).format("YYYY-MM-DD");
@@ -387,22 +459,25 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     }
 
     diagnostics.step = "fetch_expiration_dates";
-    addLog("QQQ 옵션 만기일 목록 가져오는 중...");
-    const optionChain = await yahooFinance.options("QQQ");
+    addLog(`${symbol} 옵션 만기일 목록 가져오는 중...`);
+    const optionChain = await withRetry(
+      () => yahooFinance.options(symbol),
+      `${symbol} options`,
+      addLog
+    );
 
     if (
       !optionChain ||
       !optionChain.expirationDates ||
       optionChain.expirationDates.length === 0
     ) {
-      throw new Error("QQQ 만기일 데이터를 가져오지 못했습니다.");
+      throw new Error("만기일 데이터를 가져오지 못했습니다.");
     }
 
     const rawExpirationDates = optionChain.expirationDates;
     diagnostics.expirationsCount = rawExpirationDates.length;
     addLog(`총 ${rawExpirationDates.length}개의 만기일 발견`);
 
-    const now = dayjs().tz("America/New_York");
     const todayStart = now.startOf("day");
     const filterLimit = todayStart.add(30, "day");
 
@@ -423,13 +498,22 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
       totalPutOI: number;
     } | null = null;
     try {
-      const prevOptionChain = await yahooFinance.options("QQQ");
+      const prevOptionChain = await withRetry(
+        () => yahooFinance.options(symbol),
+        `${symbol} options (prev)`,
+        addLog
+      );
       if (prevOptionChain?.expirationDates?.length > 0) {
         // 전일의 첫 번째 만기일 (오늘 만기일과 동일할 가능성 높음)
         const prevFirstExp = prevOptionChain.expirationDates[0];
-        const prevDetails = await yahooFinance.options("QQQ", {
-          date: prevFirstExp as Date,
-        });
+        const prevDetails = await withRetry(
+          () =>
+            yahooFinance.options(symbol, {
+              date: prevFirstExp as Date,
+            }),
+          `${symbol} options ${formatExpirationDate(prevFirstExp as Date)}`,
+          addLog
+        );
         const prevExpData = prevDetails?.options?.[0];
         if (prevExpData) {
           const prevCalls = prevExpData.calls || [];
@@ -485,11 +569,16 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     let ibLow: number | null = null;
     try {
       const todayStr = now.format("YYYY-MM-DD");
-      const chartData = await yahooFinance.chart("QQQ", {
-        period1: todayStr,
-        period2: todayStr,
-        interval: "1m",
-      });
+      const chartData = await withRetry(
+        () =>
+          yahooFinance.chart(symbol, {
+            period1: todayStr,
+            period2: todayStr,
+            interval: "1m",
+          }),
+        `${symbol} intraday chart`,
+        addLog
+      );
       if (chartData.quotes && chartData.quotes.length > 0) {
         // 장 시작 시간 (9:30 AM ET)
         const marketOpen = now.hour(9).minute(30).second(0);
@@ -561,9 +650,14 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
             .minute(0)
             .second(0);
 
-          const details = await yahooFinance.options("QQQ", {
-            date: originalDate, // ✅ 야후 API에는 원래의 Date 객체 전달
-          });
+          const details = await withRetry(
+            () =>
+              yahooFinance.options(symbol, {
+                date: originalDate, // ✅ 야후 API에는 원래의 Date 객체 전달
+              }),
+            `${symbol} options ${formatExpirationDate(originalDate)}`,
+            addLog
+          );
 
           const expirationData = details?.options?.[0];
 
@@ -1147,7 +1241,9 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
     });
 
     response.json({
+      symbol,
       currentPrice,
+      changePercent,
       dataTimestamp,
       nasdaqFuturesPrice,
       qqqToNasdaqFuturesRatio,
@@ -1234,10 +1330,17 @@ app.get("/api/analysis", async (_request: Request, response: Response) => {
 /**
  * Yahoo Finance 원본 데이터 TXT 다운로드용
  */
-app.get("/api/yahoo-raw", async (_request: Request, response: Response) => {
+app.get("/api/yahoo-raw", async (request: Request, response: Response) => {
   try {
-    const quote = await yahooFinance.quote("QQQ");
-    const optionChain = await yahooFinance.options("QQQ");
+    const symbol = String(request.query.symbol || "QQQ").trim().toUpperCase();
+    const quote = await withRetry(
+      () => yahooFinance.quote(symbol),
+      `${symbol} quote`
+    );
+    const optionChain = await withRetry(
+      () => yahooFinance.options(symbol),
+      `${symbol} options`
+    );
 
     if (!optionChain || !optionChain.expirationDates?.length) {
       return response.status(500).json({ error: "만기일 데이터를 가져오지 못했습니다." });
@@ -1263,7 +1366,10 @@ app.get("/api/yahoo-raw", async (_request: Request, response: Response) => {
 
     const optionsByExpiration = await Promise.all(
       finalExpirations.map(async (d) => {
-        const details = await yahooFinance.options("QQQ", { date: d });
+        const details = await withRetry(
+          () => yahooFinance.options(symbol, { date: d }),
+          `${symbol} options ${formatExpirationDate(d)}`
+        );
         return {
           expirationDate: dayjs(d).utc().format("YYYY-MM-DD"),
           details,
@@ -1272,6 +1378,7 @@ app.get("/api/yahoo-raw", async (_request: Request, response: Response) => {
     );
 
     response.json({
+      symbol,
       fetchedAt: new Date().toISOString(),
       quote,
       optionChain,
@@ -1290,6 +1397,7 @@ app.get("/api/yahoo-raw", async (_request: Request, response: Response) => {
 app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
   const {
     symbol,
+    benchmarkSymbol,
     qqqPrice,
     qqqSupport,
     qqqResistance,
@@ -1308,7 +1416,10 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
   }
 
   try {
-    const quote = await yahooFinance.quote(String(symbol));
+    const quote = await withRetry(
+      () => yahooFinance.quote(String(symbol)),
+      `${symbol} quote`
+    );
 
     if (!quote) {
       return res.status(404).json({ error: "티커 정보를 찾을 수 없습니다." });
@@ -1318,9 +1429,13 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
 
     // 1) 지정 기간 히스토리 기반 베타 직접 계산 (사용자 선택 반영)
     const betaMonths = Number(months) || 3;
-    const beta = await calculateManualBeta(String(symbol), "QQQ", betaMonths);
+    const beta = await calculateManualBeta(
+      String(symbol),
+      String(benchmarkSymbol || "QQQ"),
+      betaMonths
+    );
 
-    // QQQ 데이터가 쿼리로 오지 않으면 기본 분석 수행 (또는 에러)
+    // 벤치마크 데이터가 쿼리로 오지 않으면 기본 분석 수행 (또는 에러)
     const qPrice = Number(qqqPrice);
     const qSupport = Number(qqqSupport);
     const qResistance = Number(qqqResistance);
@@ -1328,7 +1443,7 @@ app.post("/api/ticker-analysis", async (req: Request, res: Response) => {
     const qMax = Number(qqqMax);
 
     if (!qPrice || !qSupport || !qResistance) {
-      return res.status(400).json({ error: "QQQ 기준 데이터가 필요합니다." });
+      return res.status(400).json({ error: "벤치마크 기준 데이터가 필요합니다." });
     }
 
     // 베타 보정 공식 적용
@@ -1651,7 +1766,10 @@ app.get("/api/ticker-options/expirations", async (req: Request, res: Response) =
   }
 
   try {
-    const optionChain = await yahooFinance.options(symbol);
+    const optionChain = await withRetry(
+      () => yahooFinance.options(symbol),
+      `${symbol} options`
+    );
     const now = dayjs().tz("America/New_York");
     const expirationFilter =
       type === "daily"
@@ -1687,7 +1805,10 @@ app.get("/api/ticker-options/expiration", async (req: Request, res: Response) =>
   }
 
   try {
-    const optionChain = await yahooFinance.options(symbol);
+    const optionChain = await withRetry(
+      () => yahooFinance.options(symbol),
+      `${symbol} options`
+    );
     const expirationDates = optionChain?.expirationDates || [];
     const now = dayjs().tz("America/New_York");
     const expirationFilter =
@@ -1705,9 +1826,13 @@ app.get("/api/ticker-options/expiration", async (req: Request, res: Response) =>
       return res.status(404).json({ error: "해당 만기일을 찾을 수 없습니다." });
     }
 
-    const details = await yahooFinance.options(symbol, {
-      date: targetDate as Date,
-    });
+    const details = await withRetry(
+      () =>
+        yahooFinance.options(symbol, {
+          date: targetDate as Date,
+        }),
+      `${symbol} options ${formatExpirationDate(targetDate as Date)}`
+    );
     const expirationData = details?.options?.[0];
 
     if (!expirationData) {

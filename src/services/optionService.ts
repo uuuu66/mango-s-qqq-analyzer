@@ -106,7 +106,9 @@ export interface SentimentRoadmap {
 }
 
 export interface AnalysisResult {
+  symbol?: string;
   currentPrice: number;
+  changePercent?: number;
   dataTimestamp?: string;
   nasdaqFuturesPrice?: number | null;
   qqqToNasdaqFuturesRatio?: number | null;
@@ -202,6 +204,7 @@ export interface TickerOptionChain {
 
 export const fetchTickerAnalysis = async (
   symbol: string,
+  benchmarkSymbol: string,
   qqqPrice: number,
   qqqSupport: number,
   qqqResistance: number,
@@ -221,6 +224,7 @@ export const fetchTickerAnalysis = async (
     },
     body: JSON.stringify({
       symbol,
+      benchmarkSymbol,
       qqqPrice,
       qqqSupport,
       qqqResistance,
@@ -241,9 +245,13 @@ export const fetchTickerAnalysis = async (
   return response.json();
 };
 
-export const fetchQQQData = async (): Promise<AnalysisResult> => {
+export const fetchAnalysisData = async (
+  symbol: string = "QQQ"
+): Promise<AnalysisResult> => {
   try {
-    const response = await fetch("/api/analysis");
+    const response = await fetch(
+      `/api/analysis?symbol=${encodeURIComponent(symbol)}`
+    );
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw {

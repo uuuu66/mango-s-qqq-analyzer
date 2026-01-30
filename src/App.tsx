@@ -22,7 +22,7 @@ import {
   Zap,
 } from "lucide-react";
 import {
-  fetchQQQData,
+  fetchAnalysisData,
   fetchTickerAnalysis,
   fetchTickerOptionChain,
   fetchTickerOptionExpirations,
@@ -32,9 +32,57 @@ import {
 } from "./services/optionService";
 import "./App.css";
 
+const ASSET_TABS = ["QQQ", "GLD", "SLV", "VXX", "UVXY"] as const;
+
 const App: React.FC = () => {
+  const showLegacy = true;
+  const [activeSymbol] = useState<(typeof ASSET_TABS)[number]>("QQQ");
+  const [assetDataMap, setAssetDataMap] = useState<
+    Record<(typeof ASSET_TABS)[number], AnalysisResult | null>
+  >({
+    QQQ: null,
+    GLD: null,
+    SLV: null,
+    VXX: null,
+    UVXY: null,
+  });
+  const [assetLoadingMap, setAssetLoadingMap] = useState<
+    Record<(typeof ASSET_TABS)[number], boolean>
+  >({
+    QQQ: false,
+    GLD: false,
+    SLV: false,
+    VXX: false,
+    UVXY: false,
+  });
+  const [assetErrorMap, setAssetErrorMap] = useState<
+    Record<(typeof ASSET_TABS)[number], string | null>
+  >({
+    QQQ: null,
+    GLD: null,
+    SLV: null,
+    VXX: null,
+    UVXY: null,
+  });
+  const [assetUpdatedMap, setAssetUpdatedMap] = useState<
+    Record<(typeof ASSET_TABS)[number], string | null>
+  >({
+    QQQ: null,
+    GLD: null,
+    SLV: null,
+    VXX: null,
+    UVXY: null,
+  });
+  const [loadedAssetMap, setLoadedAssetMap] = useState<
+    Record<(typeof ASSET_TABS)[number], boolean>
+  >({
+    QQQ: false,
+    GLD: false,
+    SLV: false,
+    VXX: false,
+    UVXY: false,
+  });
   const [data, setData] = useState<AnalysisResult | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
@@ -62,16 +110,79 @@ const App: React.FC = () => {
   const [expirationType, setExpirationType] = useState<"weekly" | "monthly">(
     "weekly"
   );
-  const [qqqExpirationType, setQqqExpirationType] = useState<
-    "daily" | "weekly" | "monthly"
-  >("daily");
-  const [qqqExpirations, setQqqExpirations] = useState<string[]>([]);
-  const [qqqOptionsLoading, setQqqOptionsLoading] = useState(false);
-  const [qqqOptionsError, setQqqOptionsError] = useState<string | null>(null);
-  const [qqqSelectedExpiration, setQqqSelectedExpiration] =
-    useState<string | null>(null);
-  const [qqqOptionChain, setQqqOptionChain] =
-    useState<TickerOptionChain | null>(null);
+  const [expirationTypeBySymbol, setExpirationTypeBySymbol] = useState<
+    Record<(typeof ASSET_TABS)[number], "daily" | "weekly" | "monthly">
+  >({
+    QQQ: "daily",
+    GLD: "weekly",
+    SLV: "weekly",
+    VXX: "weekly",
+    UVXY: "weekly",
+  });
+  const [expirationsBySymbol, setExpirationsBySymbol] = useState<
+    Record<(typeof ASSET_TABS)[number], string[]>
+  >({
+    QQQ: [],
+    GLD: [],
+    SLV: [],
+    VXX: [],
+    UVXY: [],
+  });
+  const [optionsLoadingBySymbol, setOptionsLoadingBySymbol] = useState<
+    Record<(typeof ASSET_TABS)[number], boolean>
+  >({
+    QQQ: false,
+    GLD: false,
+    SLV: false,
+    VXX: false,
+    UVXY: false,
+  });
+  const [optionsErrorBySymbol, setOptionsErrorBySymbol] = useState<
+    Record<(typeof ASSET_TABS)[number], string | null>
+  >({
+    QQQ: null,
+    GLD: null,
+    SLV: null,
+    VXX: null,
+    UVXY: null,
+  });
+  const [selectedExpirationBySymbol, setSelectedExpirationBySymbol] = useState<
+    Record<(typeof ASSET_TABS)[number], string | null>
+  >({
+    QQQ: null,
+    GLD: null,
+    SLV: null,
+    VXX: null,
+    UVXY: null,
+  });
+  const [optionChainBySymbol, setOptionChainBySymbol] = useState<
+    Record<(typeof ASSET_TABS)[number], TickerOptionChain | null>
+  >({
+    QQQ: null,
+    GLD: null,
+    SLV: null,
+    VXX: null,
+    UVXY: null,
+  });
+  const qqqExpirationType = expirationTypeBySymbol.QQQ;
+  const setQqqExpirationType = (type: "daily" | "weekly" | "monthly") =>
+    setExpirationTypeBySymbol((prev) => ({ ...prev, QQQ: type }));
+  const qqqExpirations = expirationsBySymbol.QQQ;
+  const qqqOptionsLoading = optionsLoadingBySymbol.QQQ;
+  const qqqOptionsError = optionsErrorBySymbol.QQQ;
+  const qqqSelectedExpiration = selectedExpirationBySymbol.QQQ;
+  const setQqqSelectedExpiration = (exp: string | null) =>
+    setSelectedExpirationBySymbol((prev) => ({ ...prev, QQQ: exp }));
+  const qqqOptionChain = optionChainBySymbol.QQQ;
+  const assetSectionRefs = useRef<
+    Record<(typeof ASSET_TABS)[number], HTMLElement | null>
+  >({
+    QQQ: null,
+    GLD: null,
+    SLV: null,
+    VXX: null,
+    UVXY: null,
+  });
   const pollingRef = useRef<number | null>(null);
   const tickerPollingRef = useRef<number | null>(null);
 
@@ -88,18 +199,21 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const loadData = useCallback(async (showLoading: boolean = false) => {
-    if (showLoading) {
-      setLoading(true);
+  const loadData = useCallback(async (symbol: (typeof ASSET_TABS)[number]) => {
+    setAssetLoadingMap((prev) => ({ ...prev, [symbol]: true }));
+    setAssetErrorMap((prev) => ({ ...prev, [symbol]: null }));
+    if (symbol === "QQQ") {
+      setError(null);
     }
-    setError(null);
     try {
-      const result = await fetchQQQData();
-      setData(result);
+      const result = await fetchAnalysisData(symbol);
+      setAssetDataMap((prev) => ({ ...prev, [symbol]: result }));
+      if (symbol === "QQQ") {
+        setData(result);
+      }
       const date = result.dataTimestamp
         ? new Date(result.dataTimestamp)
         : new Date();
-
       const formatTime = (tz: string) => {
         return date.toLocaleString("ko-KR", {
           timeZone: tz,
@@ -111,11 +225,15 @@ const App: React.FC = () => {
           hour12: false,
         });
       };
-
       const nyTime = formatTime("America/New_York");
       const krTime = formatTime("Asia/Seoul");
-
-      setLastUpdated(`미국 ${nyTime} (한국 ${krTime})`);
+      setAssetUpdatedMap((prev) => ({
+        ...prev,
+        [symbol]: `미국 ${nyTime} (한국 ${krTime})`,
+      }));
+      if (symbol === "QQQ") {
+        setLastUpdated(`미국 ${nyTime} (한국 ${krTime})`);
+      }
     } catch (err: unknown) {
       console.error("Fetch Error:", err);
       let detailedError = "";
@@ -133,12 +251,14 @@ const App: React.FC = () => {
         detailedError =
           typeof err === "object" ? JSON.stringify(err, null, 2) : String(err);
       }
-      setError(detailedError);
-      setData(null);
-    } finally {
-      if (showLoading) {
-        setLoading(false);
+      setAssetErrorMap((prev) => ({ ...prev, [symbol]: detailedError }));
+      setAssetDataMap((prev) => ({ ...prev, [symbol]: null }));
+      if (symbol === "QQQ") {
+        setError(detailedError);
+        setData(null);
       }
+    } finally {
+      setAssetLoadingMap((prev) => ({ ...prev, [symbol]: false }));
     }
   }, []);
 
@@ -181,10 +301,12 @@ const App: React.FC = () => {
     if (!isMarketOpenNY()) return;
 
     pollingRef.current = window.setInterval(() => {
-      if (!loading) {
-        loadData(false);
-      }
-    }, 5000);
+      ASSET_TABS.forEach((symbol) => {
+        if (loadedAssetMap[symbol] && !assetLoadingMap[symbol]) {
+          loadData(symbol);
+        }
+      });
+    }, 10000);
 
     return () => {
       if (pollingRef.current) {
@@ -192,7 +314,7 @@ const App: React.FC = () => {
         pollingRef.current = null;
       }
     };
-  }, [isMarketOpenNY, loadData, loading]);
+  }, [assetLoadingMap, isMarketOpenNY, loadData, loadedAssetMap]);
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
@@ -211,6 +333,7 @@ const App: React.FC = () => {
 
         const result = await fetchTickerAnalysis(
           symbol,
+          activeSymbol,
           data.currentPrice,
           data.putSupport,
           data.callResistance,
@@ -234,7 +357,7 @@ const App: React.FC = () => {
         }
       }
     },
-    [betaPeriod, data]
+    [activeSymbol, betaPeriod, data]
   );
 
   const handleTickerSearch = async (e: React.FormEvent) => {
@@ -267,7 +390,7 @@ const App: React.FC = () => {
       if (!tickerLoading && tickerAnalysis?.symbol) {
         loadTickerAnalysis(false, tickerAnalysis.symbol);
       }
-    }, 5000);
+    }, 10000);
 
     return () => {
       if (tickerPollingRef.current) {
@@ -309,47 +432,49 @@ const App: React.FC = () => {
     []
   );
 
-  const loadQqqOptionExpirations = useCallback(
-    async (type: "daily" | "weekly" | "monthly") => {
-      setQqqOptionsError(null);
-      setQqqOptionsLoading(true);
+  const loadAssetOptionChain = useCallback(
+    async (symbol: (typeof ASSET_TABS)[number], date: string, type: "daily" | "weekly" | "monthly") => {
+      setOptionsErrorBySymbol((prev) => ({ ...prev, [symbol]: null }));
+      setOptionsLoadingBySymbol((prev) => ({ ...prev, [symbol]: true }));
       try {
-        const result = await fetchTickerOptionExpirations("QQQ", type);
-        setQqqExpirations(result.expirations);
-        if (result.expirations.length > 0) {
-          setQqqSelectedExpiration(result.expirations[0]);
-        } else {
-          setQqqSelectedExpiration(null);
-          setQqqOptionChain(null);
-        }
+        const result = await fetchTickerOptionChain(symbol, date, type);
+        setOptionChainBySymbol((prev) => ({ ...prev, [symbol]: result }));
       } catch (err: unknown) {
         const message =
-          err instanceof Error ? err.message : "QQQ 만기일 조회 실패";
-        setQqqOptionsError(message);
+          err instanceof Error ? err.message : "옵션 체인 조회 실패";
+        setOptionsErrorBySymbol((prev) => ({ ...prev, [symbol]: message }));
+        setOptionChainBySymbol((prev) => ({ ...prev, [symbol]: null }));
       } finally {
-        setQqqOptionsLoading(false);
+        setOptionsLoadingBySymbol((prev) => ({ ...prev, [symbol]: false }));
       }
     },
     []
   );
 
-  const loadQqqOptionChain = useCallback(
-    async (date: string, type: "daily" | "weekly" | "monthly") => {
-      setQqqOptionsError(null);
-      setQqqOptionsLoading(true);
+  const loadAssetOptionExpirations = useCallback(
+    async (symbol: (typeof ASSET_TABS)[number], type: "daily" | "weekly" | "monthly") => {
+      setOptionsErrorBySymbol((prev) => ({ ...prev, [symbol]: null }));
+      setOptionsLoadingBySymbol((prev) => ({ ...prev, [symbol]: true }));
       try {
-        const result = await fetchTickerOptionChain("QQQ", date, type);
-        setQqqOptionChain(result);
+        const result = await fetchTickerOptionExpirations(symbol, type);
+        setExpirationsBySymbol((prev) => ({ ...prev, [symbol]: result.expirations }));
+        if (result.expirations.length > 0) {
+          const nextExp = result.expirations[0];
+          setSelectedExpirationBySymbol((prev) => ({ ...prev, [symbol]: nextExp }));
+          await loadAssetOptionChain(symbol, nextExp, type);
+        } else {
+          setSelectedExpirationBySymbol((prev) => ({ ...prev, [symbol]: null }));
+          setOptionChainBySymbol((prev) => ({ ...prev, [symbol]: null }));
+        }
       } catch (err: unknown) {
         const message =
-          err instanceof Error ? err.message : "QQQ 옵션 체인 조회 실패";
-        setQqqOptionsError(message);
-        setQqqOptionChain(null);
+          err instanceof Error ? err.message : "만기일 조회 실패";
+        setOptionsErrorBySymbol((prev) => ({ ...prev, [symbol]: message }));
       } finally {
-        setQqqOptionsLoading(false);
+        setOptionsLoadingBySymbol((prev) => ({ ...prev, [symbol]: false }));
       }
     },
-    []
+    [loadAssetOptionChain]
   );
 
   const loadTickerOptionChain = useCallback(
@@ -371,6 +496,525 @@ const App: React.FC = () => {
     []
   );
 
+  const renderAssetSection = (symbol: (typeof ASSET_TABS)[number]) => {
+    const assetData = assetDataMap[symbol];
+    const assetLoading = assetLoadingMap[symbol];
+    const assetError = assetErrorMap[symbol];
+    const assetUpdated = assetUpdatedMap[symbol];
+    const expirations = expirationsBySymbol[symbol];
+    const expirationType = expirationTypeBySymbol[symbol];
+    const selectedExpiration = selectedExpirationBySymbol[symbol];
+    const optionChain = optionChainBySymbol[symbol];
+    const optionsLoading = optionsLoadingBySymbol[symbol];
+    const optionsError = optionsErrorBySymbol[symbol];
+
+    return (
+      <section
+        key={symbol}
+        ref={(el) => {
+          assetSectionRefs.current[symbol] = el;
+        }}
+        data-symbol={symbol}
+        className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5 md:p-6"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 mb-4">
+          <div>
+            <h2 className="text-xl font-black text-slate-900 dark:text-slate-50">
+              {symbol}
+            </h2>
+            <div className="flex flex-wrap items-center gap-3 mt-1">
+              {assetData?.currentPrice ? (
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  현재가: ${assetData.currentPrice.toFixed(2)}
+                </p>
+              ) : (
+                <p className="text-sm font-semibold text-slate-400">
+                  현재가: -
+                </p>
+              )}
+              {typeof assetData?.changePercent === "number" ? (
+                <span
+                  className={`text-sm font-bold ${
+                    assetData.changePercent >= 0
+                      ? "text-emerald-500"
+                      : "text-red-500"
+                  }`}
+                >
+                  {assetData.changePercent >= 0 ? "+" : ""}
+                  {assetData.changePercent.toFixed(2)}%
+                </span>
+              ) : (
+                <span className="text-sm font-semibold text-slate-400">
+                  전일대비: -
+                </span>
+              )}
+            </div>
+            {assetUpdated && (
+              <p className="text-[10px] font-bold text-slate-400 mt-1">
+                {assetUpdated}
+              </p>
+            )}
+          </div>
+          {assetLoading && (
+            <span className="text-xs font-bold text-slate-400">로딩 중...</span>
+          )}
+        </div>
+
+        {assetError && !assetData && (
+          <div className="text-xs text-red-500 mb-4">{assetError}</div>
+        )}
+
+        {!assetData && !assetError && (
+          <div className="text-xs text-slate-400">데이터를 불러오는 중...</div>
+        )}
+
+        {assetData && (
+          <div className="space-y-8">
+            <section className="border rounded-2xl shadow-sm bg-white overflow-hidden">
+              <div className="p-4 md:p-6 border-b">
+                <h3 className="text-lg font-bold text-slate-800">
+                  만기일별 지지/저항 및 시장 방어력
+                </h3>
+              </div>
+              <div className="overflow-x-auto pb-4 custom-scrollbar">
+                <div className="h-[400px] min-w-[900px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={assetData.timeSeries}
+                      margin={{ top: 20, right: 40, left: 10, bottom: 20 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                        stroke="#f1f5f9"
+                      />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 11, fontWeight: 600 }}
+                        stroke="#64748b"
+                        padding={{ left: 30, right: 30 }}
+                      />
+                      <YAxis
+                        yAxisId="left"
+                        domain={["auto", "auto"]}
+                        tick={{ fontSize: 11, fontWeight: 600 }}
+                        stroke="#64748b"
+                        label={{
+                          value: "Price ($)",
+                          angle: -90,
+                          position: "insideLeft",
+                          fontSize: 10,
+                          fontWeight: 700,
+                        }}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        tick={{ fontSize: 11, fontWeight: 600 }}
+                        stroke="#3b82f6"
+                        label={{
+                          value: "GEX Energy",
+                          angle: 90,
+                          position: "insideRight",
+                          fontSize: 10,
+                          fontWeight: 700,
+                        }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: "16px",
+                          border: "none",
+                          boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)",
+                          fontSize: "12px",
+                          padding: "12px",
+                        }}
+                        cursor={{ stroke: "#e2e8f0", strokeWidth: 2 }}
+                      />
+                      <Area
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey={(item) => item.totalGex / 1e9}
+                        fill="#3b82f6"
+                        fillOpacity={0.08}
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        name="GEX Energy"
+                      />
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="callResistance"
+                        stroke="#ef4444"
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                        dot={{ r: 5, fill: "#ef4444" }}
+                        name="Call Wall"
+                      />
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="putSupport"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                        dot={{ r: 5, fill: "#3b82f6" }}
+                        name="Put Wall"
+                      />
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="expectedPrice"
+                        stroke="#6366f1"
+                        strokeWidth={2.5}
+                        dot={{ r: 5, fill: "#6366f1" }}
+                        name="예상 종가 (Target)"
+                      />
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="expectedUpper"
+                        stroke="#10b981"
+                        strokeWidth={1}
+                        strokeDasharray="2 2"
+                        dot={false}
+                        name="1-SD 상단 (기대범위)"
+                      />
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="expectedLower"
+                        stroke="#10b981"
+                        strokeWidth={1}
+                        strokeDasharray="2 2"
+                        dot={false}
+                        name="1-SD 하단 (기대범위)"
+                      />
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey={() => assetData.currentPrice}
+                        stroke="#1e293b"
+                        strokeWidth={1}
+                        dot={false}
+                        strokeOpacity={0.4}
+                        name="현재가"
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </section>
+
+            <section className="p-4 md:p-6 border rounded-2xl shadow-sm bg-white overflow-hidden">
+              <div className="mb-6 border-b pb-4">
+                <h3 className="text-lg font-bold text-slate-800">
+                  만기일별 시장 심리 추세
+                </h3>
+              </div>
+              <div className="overflow-x-auto pb-4 custom-scrollbar">
+                <div className="h-[250px] min-w-[900px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={assetData.timeSeries}
+                      margin={{ top: 10, right: 40, left: 10, bottom: 10 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                        stroke="#f1f5f9"
+                      />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 11, fontWeight: 600 }}
+                        stroke="#64748b"
+                        padding={{ left: 30, right: 30 }}
+                      />
+                      <YAxis
+                        domain={[-100, 100]}
+                        tick={{ fontSize: 11, fontWeight: 600 }}
+                        stroke="#10b981"
+                        label={{
+                          value: "Sentiment",
+                          angle: -90,
+                          position: "insideLeft",
+                          fontSize: 10,
+                          fontWeight: 700,
+                        }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: "16px",
+                          border: "none",
+                          boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)",
+                          fontSize: "12px",
+                          padding: "12px",
+                        }}
+                        cursor={{ stroke: "#e2e8f0", strokeWidth: 2 }}
+                      />
+                      <ReferenceArea y1={-20} y2={20} fill="#e2e8f0" />
+                      <Line
+                        type="monotone"
+                        dataKey="sentiment"
+                        stroke="#10b981"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: "#10b981" }}
+                        name="Sentiment"
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <Zap className="w-3.5 h-3.5 text-indigo-500" />
+                    {symbol} 만기 현황
+                  </h4>
+                  <div className="flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpirationTypeBySymbol((prev) => ({
+                          ...prev,
+                          [symbol]: "daily",
+                        }))
+                      }
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-colors ${
+                        expirationType === "daily"
+                          ? "bg-indigo-500 text-white"
+                          : "text-slate-500 hover:text-indigo-600"
+                      }`}
+                    >
+                      Daily
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpirationTypeBySymbol((prev) => ({
+                          ...prev,
+                          [symbol]: "weekly",
+                        }))
+                      }
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-colors ${
+                        expirationType === "weekly"
+                          ? "bg-indigo-500 text-white"
+                          : "text-slate-500 hover:text-indigo-600"
+                      }`}
+                    >
+                      Weekly
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpirationTypeBySymbol((prev) => ({
+                          ...prev,
+                          [symbol]: "monthly",
+                        }))
+                      }
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-black transition-colors ${
+                        expirationType === "monthly"
+                          ? "bg-indigo-500 text-white"
+                          : "text-slate-500 hover:text-indigo-600"
+                      }`}
+                    >
+                      Monthly
+                    </button>
+                  </div>
+                </div>
+                <a
+                  href={`https://optioncharts.io/options/${symbol}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600 uppercase tracking-widest"
+                >
+                  OptionCharts 보기
+                </a>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {expirations.length === 0 && !optionsLoading && (
+                  <span className="text-xs text-slate-400">
+                    만기일 정보를 불러오지 못했습니다.
+                  </span>
+                )}
+                {expirations.map((exp) => (
+                  <button
+                    key={exp}
+                    onClick={() => {
+                      setSelectedExpirationBySymbol((prev) => ({
+                        ...prev,
+                        [symbol]: exp,
+                      }));
+                      loadAssetOptionChain(symbol, exp, expirationType);
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-[11px] font-black border transition-colors ${
+                      selectedExpiration === exp
+                        ? "bg-indigo-500 text-white border-indigo-500"
+                        : "bg-white text-slate-500 border-slate-200 hover:border-indigo-200 hover:text-indigo-600"
+                    }`}
+                  >
+                    {exp}
+                  </button>
+                ))}
+              </div>
+              {optionsLoading && (
+                <div className="text-xs text-slate-400">옵션 데이터를 불러오는 중...</div>
+              )}
+              {optionsError && (
+                <div className="text-xs text-red-500">{optionsError}</div>
+              )}
+              {optionChain && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        만기일
+                      </div>
+                      <div className="text-lg font-black text-slate-700 dark:text-slate-100">
+                        {optionChain.expirationDate}
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        PCR
+                      </div>
+                      <div className="text-lg font-black text-slate-700 dark:text-slate-100">
+                        {optionChain.summary.pcr.toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900">
+                      <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+                        Call Wall
+                      </div>
+                      <div className="text-lg font-black text-emerald-600">
+                        {optionChain.summary.callWall
+                          ? `$${optionChain.summary.callWall.toFixed(2)}`
+                          : "-"}
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900">
+                      <div className="text-[10px] font-bold text-rose-600 uppercase tracking-widest">
+                        Put Wall
+                      </div>
+                      <div className="text-lg font-black text-rose-600">
+                        {optionChain.summary.putWall
+                          ? `$${optionChain.summary.putWall.toFixed(2)}`
+                          : "-"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                      <div className="px-4 py-3 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-200 text-xs font-bold uppercase tracking-widest">
+                        Calls
+                      </div>
+                      <div className="max-h-[320px] overflow-y-auto">
+                        <table className="w-full text-[11px]">
+                          <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
+                            <tr>
+                              <th className="px-4 py-2 text-left">Strike</th>
+                              <th className="px-4 py-2 text-right">Last</th>
+                              <th className="px-4 py-2 text-right">OI</th>
+                              <th className="px-4 py-2 text-right">Volume</th>
+                              <th className="px-4 py-2 text-right">IV</th>
+                              <th className="px-4 py-2 text-right">ITM</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {optionChain.calls
+                              .slice()
+                              .sort((a, b) => b.openInterest - a.openInterest)
+                              .map((opt, idx) => (
+                                <tr
+                                  key={`${opt.strike}-${idx}`}
+                                  className="border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-200"
+                                >
+                                  <td className="px-4 py-2 font-mono">
+                                    ${opt.strike.toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-mono">
+                                    ${opt.lastPrice.toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-mono">
+                                    {opt.openInterest.toLocaleString()}
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-mono">
+                                    {opt.volume.toLocaleString()}
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-mono">
+                                    {(opt.impliedVolatility * 100).toFixed(1)}%
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-mono">
+                                    {opt.inTheMoney ? "Y" : "N"}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                      <div className="px-4 py-3 bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-200 text-xs font-bold uppercase tracking-widest">
+                        Puts
+                      </div>
+                      <div className="max-h-[320px] overflow-y-auto">
+                        <table className="w-full text-[11px]">
+                          <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
+                            <tr>
+                              <th className="px-4 py-2 text-left">Strike</th>
+                              <th className="px-4 py-2 text-right">Last</th>
+                              <th className="px-4 py-2 text-right">OI</th>
+                              <th className="px-4 py-2 text-right">Volume</th>
+                              <th className="px-4 py-2 text-right">IV</th>
+                              <th className="px-4 py-2 text-right">ITM</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {optionChain.puts
+                              .slice()
+                              .sort((a, b) => b.openInterest - a.openInterest)
+                              .map((opt, idx) => (
+                                <tr
+                                  key={`${opt.strike}-${idx}`}
+                                  className="border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-200"
+                                >
+                                  <td className="px-4 py-2 font-mono">
+                                    ${opt.strike.toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-mono">
+                                    ${opt.lastPrice.toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-mono">
+                                    {opt.openInterest.toLocaleString()}
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-mono">
+                                    {opt.volume.toLocaleString()}
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-mono">
+                                    {(opt.impliedVolatility * 100).toFixed(1)}%
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-mono">
+                                    {opt.inTheMoney ? "Y" : "N"}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </section>
+    );
+  };
+
   useEffect(() => {
     if (tickerAnalysis?.symbol) {
       loadTickerOptionExpirations(tickerAnalysis.symbol, expirationType);
@@ -380,10 +1024,6 @@ const App: React.FC = () => {
       setTickerOptionChain(null);
     }
   }, [expirationType, loadTickerOptionExpirations, tickerAnalysis?.symbol]);
-
-  useEffect(() => {
-    loadQqqOptionExpirations(qqqExpirationType);
-  }, [loadQqqOptionExpirations, qqqExpirationType]);
 
   useEffect(() => {
     if (tickerAnalysis?.symbol && selectedExpiration) {
@@ -401,10 +1041,12 @@ const App: React.FC = () => {
   ]);
 
   useEffect(() => {
-    if (qqqSelectedExpiration) {
-      loadQqqOptionChain(qqqSelectedExpiration, qqqExpirationType);
-    }
-  }, [loadQqqOptionChain, qqqExpirationType, qqqSelectedExpiration]);
+    ASSET_TABS.forEach((symbol) => {
+      if (loadedAssetMap[symbol]) {
+        loadAssetOptionExpirations(symbol, expirationTypeBySymbol[symbol]);
+      }
+    });
+  }, [expirationTypeBySymbol, loadAssetOptionExpirations, loadedAssetMap]);
 
   const downloadAsText = useCallback(() => {
     if (!data) return;
@@ -420,7 +1062,8 @@ const App: React.FC = () => {
     ).gtag?.("event", "download_text", {
       page_path: window.location.pathname,
     });
-    let text = `QQQ Analysis Report - ${new Date().toLocaleString()}\n`;
+    const reportSymbol = data.symbol || activeSymbol;
+    let text = `${reportSymbol} Analysis Report - ${new Date().toLocaleString()}\n`;
     text += `==========================================\n\n`;
     text += `[ Summary ]\n`;
     text += `Current Price: $${data.currentPrice?.toFixed(2)}\n`;
@@ -512,18 +1155,20 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `qqq-analysis-${
+    link.download = `${activeSymbol.toLowerCase()}-analysis-${
       new Date().toISOString().split("T")[0]
     }.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [data]);
+  }, [activeSymbol, data]);
 
   const downloadYahooRaw = useCallback(async () => {
     try {
-      const response = await fetch("/api/yahoo-raw");
+      const response = await fetch(
+        `/api/yahoo-raw?symbol=${encodeURIComponent(activeSymbol)}`
+      );
       if (!response.ok) {
         throw new Error("원본 데이터를 가져오지 못했습니다.");
       }
@@ -533,7 +1178,7 @@ const App: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `qqq-yahoo-raw-${
+      link.download = `${activeSymbol.toLowerCase()}-yahoo-raw-${
         new Date().toISOString().split("T")[0]
       }.txt`;
       document.body.appendChild(link);
@@ -543,11 +1188,32 @@ const App: React.FC = () => {
     } catch (err: unknown) {
       console.error("Raw Download Error:", err);
     }
-  }, []);
+  }, [activeSymbol]);
 
   useEffect(() => {
-    loadData(true);
-  }, [loadData]);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const symbol = entry.target.getAttribute("data-symbol") as
+            | (typeof ASSET_TABS)[number]
+            | null;
+          if (!symbol || loadedAssetMap[symbol]) return;
+          if (entry.isIntersecting) {
+            setLoadedAssetMap((prev) => ({ ...prev, [symbol]: true }));
+            loadData(symbol);
+          }
+        });
+      },
+      { rootMargin: "200px 0px", threshold: 0.1 }
+    );
+
+    ASSET_TABS.forEach((symbol) => {
+      const el = assetSectionRefs.current[symbol];
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [loadedAssetMap, loadData]);
 
   const getCurrentStatus = () => {
     if (!data) return null;
@@ -571,17 +1237,6 @@ const App: React.FC = () => {
         selectedTickerRange.expectedResistance) /
         2);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-slate-50 font-sans">
-        <RefreshCw className="w-12 h-12 animate-spin text-blue-500 mb-4" />
-        <p className="text-xl font-semibold text-slate-700">
-          실시간 QQQ 옵션 흐름 분석 중...
-        </p>
-      </div>
-    );
-  }
-
   if (error && !data) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-white p-6 text-center font-sans">
@@ -593,7 +1248,7 @@ const App: React.FC = () => {
         </h2>
         <p className="text-slate-500 mb-8 max-w-md">ㅠㅠ</p>
         <button
-          onClick={() => loadData(true)}
+          onClick={() => loadData("QQQ")}
           className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
         >
           <RefreshCw className="w-5 h-5" /> 다시 시도
@@ -621,7 +1276,7 @@ const App: React.FC = () => {
           />
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
-              QQQ Flow Analyzer
+              {activeSymbol} Flow Analyzer
               <span className="ml-3 text-xs font-bold bg-blue-100 text-blue-600 px-2 py-1 rounded-md uppercase tracking-wider">
                 30-Day Outlook
               </span>
@@ -642,6 +1297,9 @@ const App: React.FC = () => {
                   )}
                 </div>
               </div>
+              <p className="text-[11px] text-slate-400">
+                데이터는 10초마다 호출됩니다. 호출량 제한으로 양해 부탁드립니다.
+              </p>
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
                 {currentStatus && (
                   <div className="flex items-center gap-2">
@@ -713,15 +1371,20 @@ const App: React.FC = () => {
             <span className="text-xs font-bold">원본 TXT</span>
           </button>
           <button
-            onClick={() => loadData(true)}
+            onClick={() => loadData("QQQ")}
             className="flex-1 sm:flex-none p-2 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl transition-colors flex items-center justify-center gap-2 px-4 border border-slate-200 dark:border-slate-700 text-blue-600"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className="w-4 h-4" />
             <span className="text-xs font-bold">새로고침</span>
           </button>
         </div>
       </header>
+      <div className="space-y-8">
+        {ASSET_TABS.map((symbol) => renderAssetSection(symbol))}
+      </div>
 
+      {showLegacy && (
+        <>
       {/* Charts Section */}
       <div className="space-y-8">
         <section className="p-4 md:p-6 border rounded-2xl shadow-sm bg-white overflow-hidden">
@@ -1208,7 +1871,7 @@ const App: React.FC = () => {
                       fontSize: "12px",
                       padding: "12px",
                     }}
-                    formatter={(value: any, name: any) => {
+                    formatter={(value: number | undefined, name: string| undefined) => {
                       if (name === "VIX") {
                         return [
                           value !== undefined && value !== null
@@ -1274,7 +1937,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-2">
             <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
               <Zap className="w-3.5 h-3.5 text-indigo-500" />
-              QQQ 만기 현황
+              {activeSymbol} 만기 현황
             </h4>
             <div className="flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-0.5">
               <button
@@ -1313,7 +1976,7 @@ const App: React.FC = () => {
             </div>
           </div>
           <a
-            href="https://optioncharts.io/options/QQQ"
+            href={`https://optioncharts.io/options/${activeSymbol}`}
             target="_blank"
             rel="noreferrer"
             className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600 uppercase tracking-widest"
@@ -1871,7 +2534,7 @@ const App: React.FC = () => {
             개별 티커 베타 분석
           </h2>
           <p className="text-sm text-slate-500">
-            QQQ GEX 데이터와 개별 주식의 베타($\beta$)를 결합하여 예상
+            {activeSymbol} GEX 데이터와 개별 주식의 베타($\beta$)를 결합하여 예상
             지지/저항선을 계산합니다.
           </p>
         </div>
@@ -2045,8 +2708,8 @@ const App: React.FC = () => {
                       ${tickerAnalysis.expectedMin?.toFixed(2)}
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 font-medium">
-                      QQQ가 ${data?.recommendations[0].max?.toFixed(2)}까지
-                      폭락할 때
+                      {activeSymbol}가 ${data?.recommendations[0].max?.toFixed(2)}
+                      까지 폭락할 때
                     </p>
                   </div>
 
@@ -2058,7 +2721,7 @@ const App: React.FC = () => {
                       ${tickerAnalysis.expectedSupport?.toFixed(2)}
                     </div>
                     <p className="text-[11px] text-blue-600/70 dark:text-blue-200 mt-2 font-medium">
-                      QQQ가 ${data?.putSupport?.toFixed(2)}까지 밀릴 때
+                      {activeSymbol}가 ${data?.putSupport?.toFixed(2)}까지 밀릴 때
                     </p>
                   </div>
                 </div>
@@ -2073,7 +2736,7 @@ const App: React.FC = () => {
                       ${tickerAnalysis.expectedResistance?.toFixed(2)}
                     </div>
                     <p className="text-[11px] text-red-600/70 dark:text-red-200 mt-2 font-medium">
-                      QQQ가 ${data?.callResistance?.toFixed(2)}까지 오를 때
+                      {activeSymbol}가 ${data?.callResistance?.toFixed(2)}까지 오를 때
                     </p>
                   </div>
 
@@ -2854,6 +3517,8 @@ const App: React.FC = () => {
         </div>
       </section>
 
+      </>
+      )}
       <footer className="mb-12 text-center text-slate-400 text-[10px]">
         <div className="max-w-4xl mx-auto px-4 py-8 border-t border-slate-200">
           <p className="font-bold text-slate-600 mb-3 text-xs uppercase tracking-widest">
