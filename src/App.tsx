@@ -918,7 +918,7 @@ const App: React.FC = () => {
                   }
                   className={`px-3 py-1 rounded-full text-[11px] font-black border transition-colors ${
                     sortBy === "oi"
-                      ? "bg-slate-900 text-white border-slate-900"
+                      ? "selected-nav-button text-white border-slate-900"
                       : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
                   }`}
                 >
@@ -931,7 +931,7 @@ const App: React.FC = () => {
                   }
                   className={`px-3 py-1 rounded-full text-[11px] font-black border transition-colors ${
                     sortBy === "volume"
-                      ? "bg-slate-900 text-white border-slate-900"
+                      ? "selected-nav-button  text-white border-slate-900"
                       : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
                   }`}
                 >
