@@ -498,6 +498,16 @@ const App: React.FC = () => {
     [loadAssetOptionChain]
   );
 
+  const handleScrollToAsset = useCallback(
+    (symbol: (typeof ASSET_TABS)[number]) => {
+      const el = assetSectionRefs.current[symbol];
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    },
+    []
+  );
+
   const loadTickerOptionChain = useCallback(
     async (symbol: string, expiration: string, type: "weekly" | "monthly") => {
       setTickerOptionsLoading(true);
@@ -1321,6 +1331,18 @@ const App: React.FC = () => {
               <p className="text-[11px] text-slate-400">
                 데이터는 10초마다 호출됩니다. 호출량 제한으로 양해 부탁드립니다.
               </p>
+              <div className="flex flex-wrap gap-2">
+                {ASSET_TABS.map((symbol) => (
+                  <button
+                    key={symbol}
+                    type="button"
+                    onClick={() => handleScrollToAsset(symbol)}
+                    className="px-3 py-1 rounded-full text-[11px] font-black border border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800 transition-colors"
+                  >
+                    {symbol}
+                  </button>
+                ))}
+              </div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
                 {currentStatus && (
                   <div className="flex items-center gap-2">
