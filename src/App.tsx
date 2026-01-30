@@ -44,6 +44,7 @@ const API_SYMBOL_MAP: Record<(typeof ASSET_TABS)[number], string> = {
 
 const App: React.FC = () => {
   const showLegacy = true;
+  const [isNavOpen, setIsNavOpen] = useState(false);
   const [activeSymbol] = useState<(typeof ASSET_TABS)[number]>("QQQ");
   const [assetDataMap, setAssetDataMap] = useState<
     Record<(typeof ASSET_TABS)[number], AnalysisResult | null>
@@ -552,6 +553,11 @@ const App: React.FC = () => {
           <div>
             <h2 className="text-xl font-black text-slate-900 dark:text-slate-50">
               {symbol}
+              {API_SYMBOL_MAP[symbol] !== symbol && (
+                <span className="ml-2 text-xs font-bold text-slate-400">
+                  ({API_SYMBOL_MAP[symbol]})
+                </span>
+              )}
             </h2>
             <div className="flex flex-wrap items-center gap-3 mt-1">
               {assetData?.currentPrice ? (
@@ -1298,7 +1304,7 @@ const App: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white dark:bg-slate-900 min-h-screen font-sans overflow-x-hidden text-slate-900 dark:text-emerald-400 dark:**:text-emerald-400">
-      <header className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <header className="mb-4 border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-4">
           <img
             src="/mqa.jpg"
@@ -1331,18 +1337,6 @@ const App: React.FC = () => {
               <p className="text-[11px] text-slate-400">
                 데이터는 10초마다 호출됩니다. 호출량 제한으로 양해 부탁드립니다.
               </p>
-              <div className="flex flex-wrap gap-2">
-                {ASSET_TABS.map((symbol) => (
-                  <button
-                    key={symbol}
-                    type="button"
-                    onClick={() => handleScrollToAsset(symbol)}
-                    className="px-3 py-1 rounded-full text-[11px] font-black border border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800 transition-colors"
-                  >
-                    {symbol}
-                  </button>
-                ))}
-              </div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
                 {currentStatus && (
                   <div className="flex items-center gap-2">
@@ -1422,6 +1416,41 @@ const App: React.FC = () => {
           </button>
         </div>
       </header>
+
+      <div className="sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 py-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+            Navigation
+          </span>
+          <button
+            type="button"
+            onClick={() => setIsNavOpen((prev) => !prev)}
+            className="sm:hidden inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 text-slate-600 text-[11px] font-black"
+          >
+            <span className="text-base leading-none">☰</span>
+            메뉴
+          </button>
+        </div>
+        <div
+          className={`mt-3 flex flex-wrap gap-2 ${
+            isNavOpen ? "flex" : "hidden"
+          } sm:flex`}
+        >
+          {ASSET_TABS.map((symbol) => (
+            <button
+              key={symbol}
+              type="button"
+              onClick={() => {
+                handleScrollToAsset(symbol);
+                setIsNavOpen(false);
+              }}
+              className="px-3 py-1 rounded-full text-[11px] font-black border border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800 transition-colors"
+            >
+              {symbol}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="space-y-8">
         {ASSET_TABS.map((symbol) => renderAssetSection(symbol))}
       </div>
