@@ -45,6 +45,9 @@ const API_SYMBOL_MAP: Record<(typeof ASSET_TABS)[number], string> = {
 const App: React.FC = () => {
   const showLegacy = true;
   const [isNavOpen, setIsNavOpen] = useState(false);
+  const [activeNavSymbol, setActiveNavSymbol] = useState<
+    (typeof ASSET_TABS)[number]
+  >("QQQ");
   const [activeSymbol] = useState<(typeof ASSET_TABS)[number]>("QQQ");
   const [assetDataMap, setAssetDataMap] = useState<
     Record<(typeof ASSET_TABS)[number], AnalysisResult | null>
@@ -547,7 +550,7 @@ const App: React.FC = () => {
           assetSectionRefs.current[symbol] = el;
         }}
         data-symbol={symbol}
-        className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5 md:p-6"
+        className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5 md:p-6 scroll-mt-20"
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 mb-4">
           <div>
@@ -1233,6 +1236,33 @@ const App: React.FC = () => {
     });
   }, [loadData]);
 
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort(
+            (a, b) => (b.intersectionRatio || 0) - (a.intersectionRatio || 0)
+          );
+        if (visible.length === 0) return;
+        const symbol = visible[0].target.getAttribute("data-symbol") as
+          | (typeof ASSET_TABS)[number]
+          | null;
+        if (symbol) {
+          setActiveNavSymbol(symbol);
+        }
+      },
+      { rootMargin: "-30% 0px -60% 0px", threshold: [0.1, 0.5, 0.9] }
+    );
+
+    ASSET_TABS.forEach((symbol) => {
+      const el = assetSectionRefs.current[symbol];
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   const getCurrentStatus = () => {
     if (!data) return null;
     const price = data.currentPrice;
@@ -1398,7 +1428,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <div className="sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 py-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
+      <div className="fixed top-0 left-0 right-0 z-30 px-4 md:px-6 py-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-between gap-3">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
             Navigation
@@ -1425,13 +1455,18 @@ const App: React.FC = () => {
                 handleScrollToAsset(symbol);
                 setIsNavOpen(false);
               }}
-              className="px-3 py-1 rounded-full text-[11px] font-black border border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800 transition-colors"
+              className={`px-3 py-1 rounded-full text-[11px] font-black border transition-colors ${
+                activeNavSymbol === symbol
+                  ? "bg-slate-100 text-slate-900 border-slate-300"
+                  : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800"
+              }`}
             >
               {symbol}
             </button>
           ))}
         </div>
       </div>
+      <div className="h-14" />
       <div className="space-y-8">
         {ASSET_TABS.map((symbol) => renderAssetSection(symbol))}
       </div>
