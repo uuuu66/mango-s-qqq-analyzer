@@ -946,7 +946,7 @@ const App: React.FC = () => {
               )}
               {optionChain && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                     <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                         만기일
@@ -983,6 +983,16 @@ const App: React.FC = () => {
                           : "-"}
                       </div>
                     </div>
+                    <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900">
+                      <div className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+                        Max Pain
+                      </div>
+                      <div className="text-lg font-black text-slate-700 dark:text-slate-100">
+                        {optionChain.summary.maxPain
+                          ? `$${optionChain.summary.maxPain.toFixed(2)}`
+                          : "-"}
+                      </div>
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
@@ -993,6 +1003,7 @@ const App: React.FC = () => {
                         <table className="w-full text-[11px]">
                           <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
                             <tr>
+                              <th className="px-4 py-2 text-left">Max Pain</th>
                               <th className="px-4 py-2 text-left">Strike</th>
                               <th className="px-4 py-2 text-right">Last</th>
                               <th className="px-4 py-2 text-right">OI</th>
@@ -1014,6 +1025,11 @@ const App: React.FC = () => {
                                   key={`${opt.strike}-${idx}`}
                                   className="border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-200"
                                 >
+                                  <td className="px-4 py-2 font-mono">
+                                    {optionChain.summary.maxPain
+                                      ? `$${optionChain.summary.maxPain.toFixed(2)}`
+                                      : "-"}
+                                  </td>
                                   <td className="px-4 py-2 font-mono">
                                     ${opt.strike.toFixed(2)}
                                   </td>
@@ -1047,6 +1063,7 @@ const App: React.FC = () => {
                         <table className="w-full text-[11px]">
                           <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
                             <tr>
+                              <th className="px-4 py-2 text-left">Max Pain</th>
                               <th className="px-4 py-2 text-left">Strike</th>
                               <th className="px-4 py-2 text-right">Last</th>
                               <th className="px-4 py-2 text-right">OI</th>
@@ -1068,6 +1085,11 @@ const App: React.FC = () => {
                                   key={`${opt.strike}-${idx}`}
                                   className="border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-200"
                                 >
+                                  <td className="px-4 py-2 font-mono">
+                                    {optionChain.summary.maxPain
+                                      ? `$${optionChain.summary.maxPain.toFixed(2)}`
+                                      : "-"}
+                                  </td>
                                   <td className="px-4 py-2 font-mono">
                                     ${opt.strike.toFixed(2)}
                                   </td>
@@ -1516,7 +1538,7 @@ const App: React.FC = () => {
               }}
               className={`px-3 py-1 rounded-full text-[11px] font-black border transition-colors ${
                 activeNavSymbol === symbol
-                  ? "bg-slate-100 text-slate-900 border-slate-300"
+                  ? "bg-white text-slate-900 border-slate-300"
                   : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800"
               }`}
             >

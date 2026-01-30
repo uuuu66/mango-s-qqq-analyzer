@@ -335,6 +335,7 @@ interface TickerOptionSummary {
   putWall: number | null;
   avgIv: number | null;
   spotPrice: number | null;
+  maxPain: number | null;
 }
 
 interface TickerOptionRow {
@@ -2001,6 +2002,31 @@ app.get("/api/ticker-options/expiration", async (req: Request, res: Response) =>
       inTheMoney: Boolean(opt.inTheMoney),
     });
 
+    const mappedCalls = calls.map(mapOptionRow);
+    const mappedPuts = puts.map(mapOptionRow);
+    const strikeSet = new Set<number>();
+    mappedCalls.forEach((opt) => strikeSet.add(opt.strike));
+    mappedPuts.forEach((opt) => strikeSet.add(opt.strike));
+    const strikes = Array.from(strikeSet).sort((a, b) => a - b);
+    const maxPain =
+      strikes.length > 0
+        ? strikes.reduce((best, price) => {
+            const callPain = mappedCalls.reduce(
+              (acc, opt) =>
+                acc + Math.max(0, price - opt.strike) * opt.openInterest,
+              0
+            );
+            const putPain = mappedPuts.reduce(
+              (acc, opt) =>
+                acc + Math.max(0, opt.strike - price) * opt.openInterest,
+              0
+            );
+            const total = callPain + putPain;
+            if (!best) return { price, total };
+            return total < best.total ? { price, total } : best;
+          }, null as { price: number; total: number } | null)?.price ?? null
+        : null;
+
     const responsePayload = {
       symbol: symbol.toUpperCase(),
       expirationDate: date,
@@ -2014,9 +2040,10 @@ app.get("/api/ticker-options/expiration", async (req: Request, res: Response) =>
         putWall,
         avgIv,
         spotPrice,
+        maxPain,
       } as TickerOptionSummary,
-      calls: calls.map(mapOptionRow).sort((a, b) => a.strike - b.strike),
-      puts: puts.map(mapOptionRow).sort((a, b) => a.strike - b.strike),
+      calls: mappedCalls.sort((a, b) => a.strike - b.strike),
+      puts: mappedPuts.sort((a, b) => a.strike - b.strike),
       links: {
         overview: `https://optioncharts.io/options/${symbol.toUpperCase()}`,
         expiration: `https://optioncharts.io/options/${symbol.toUpperCase()}/option-chain?expiration_dates=${date}:${

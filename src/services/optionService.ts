@@ -179,6 +179,7 @@ export interface TickerOptionChainSummary {
   putWall: number | null;
   avgIv: number | null;
   spotPrice: number | null;
+  maxPain: number | null;
 }
 
 export interface TickerOptionRow {
