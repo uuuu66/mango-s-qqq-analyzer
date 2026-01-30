@@ -86,15 +86,15 @@ const App: React.FC = () => {
     UVXY: null,
     BTC: null,
   });
-  const [loadedAssetMap, setLoadedAssetMap] = useState<
+  const [loadedAssetMap] = useState<
     Record<(typeof ASSET_TABS)[number], boolean>
   >({
-    QQQ: false,
-    GLD: false,
-    SLV: false,
-    VXX: false,
-    UVXY: false,
-    BTC: false,
+    QQQ: true,
+    GLD: true,
+    SLV: true,
+    VXX: true,
+    UVXY: true,
+    BTC: true,
   });
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1228,29 +1228,10 @@ const App: React.FC = () => {
   }, [activeSymbol]);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const symbol = entry.target.getAttribute("data-symbol") as
-            | (typeof ASSET_TABS)[number]
-            | null;
-          if (!symbol || loadedAssetMap[symbol]) return;
-          if (entry.isIntersecting) {
-            setLoadedAssetMap((prev) => ({ ...prev, [symbol]: true }));
-            loadData(symbol);
-          }
-        });
-      },
-      { rootMargin: "200px 0px", threshold: 0.1 }
-    );
-
     ASSET_TABS.forEach((symbol) => {
-      const el = assetSectionRefs.current[symbol];
-      if (el) observer.observe(el);
+      loadData(symbol);
     });
-
-    return () => observer.disconnect();
-  }, [loadedAssetMap, loadData]);
+  }, [loadData]);
 
   const getCurrentStatus = () => {
     if (!data) return null;
