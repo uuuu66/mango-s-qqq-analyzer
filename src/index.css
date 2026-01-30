@@ -24,6 +24,10 @@
   background-color: #0f172a;
 }
 
+.selected-nav-button{
+  background-color:#22c55e !important;
+  color: #000 !important;
+}
 :root.dark .recharts-cartesian-grid line,
 :root.dark .recharts-cartesian-axis line,
 :root.dark .recharts-line-curve,

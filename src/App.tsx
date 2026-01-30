@@ -44,7 +44,7 @@ const API_SYMBOL_MAP: Record<(typeof ASSET_TABS)[number], string> = {
 
 const App: React.FC = () => {
   const showLegacy = true;
-  const [isNavOpen, setIsNavOpen] = useState(false);
+
   const [activeNavSymbol, setActiveNavSymbol] = useState<
     (typeof ASSET_TABS)[number]
   >("QQQ");
@@ -1395,7 +1395,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white dark:bg-slate-900 min-h-screen font-sans overflow-x-hidden text-slate-900 dark:text-emerald-400 dark:**:text-emerald-400">
+    <div className="container mx-auto p-4 md:p-6 max-w-6xl bg-white dark:bg-slate-900 min-h-screen font-sans overflow-x-hidden text-slate-900 dark:text-emerald-400 dark:**:text-emerald-400 mt-16">
       <header className="mb-4 border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-4">
           <img
@@ -1510,23 +1510,9 @@ const App: React.FC = () => {
       </header>
 
       <div className="fixed top-0 left-0 right-0 z-30 px-4 md:px-6 py-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-            Navigation
-          </span>
-          <button
-            type="button"
-            onClick={() => setIsNavOpen((prev) => !prev)}
-            className="sm:hidden inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 text-slate-600 text-[11px] font-black"
-          >
-            <span className="text-base leading-none">☰</span>
-            메뉴
-          </button>
-        </div>
+       
         <div
-          className={`mt-3 flex flex-wrap gap-2 ${
-            isNavOpen ? "flex" : "hidden"
-          } sm:flex`}
+          className={`mt-3 flex flex-wrap gap-2  sm:flex`}
         >
           {ASSET_TABS.map((symbol) => (
             <button
@@ -1534,11 +1520,12 @@ const App: React.FC = () => {
               type="button"
               onClick={() => {
                 handleScrollToAsset(symbol);
-                setIsNavOpen(false);
+        
               }}
+              style={{backgroundColor: symbol === activeNavSymbol ? "green !important" : "black"}}
               className={`px-3 py-1 rounded-full text-[11px] font-black border transition-colors ${
                 activeNavSymbol === symbol
-                  ? "bg-white text-slate-900 border-slate-300"
+                  ? "selected-nav-button text-black border-slate-300"
                   : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800"
               }`}
             >
