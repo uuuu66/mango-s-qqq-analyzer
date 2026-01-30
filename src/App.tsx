@@ -32,7 +32,15 @@ import {
 } from "./services/optionService";
 import "./App.css";
 
-const ASSET_TABS = ["QQQ", "GLD", "SLV", "VXX", "UVXY"] as const;
+const ASSET_TABS = ["QQQ", "GLD", "SLV", "VXX", "UVXY", "BTC"] as const;
+const API_SYMBOL_MAP: Record<(typeof ASSET_TABS)[number], string> = {
+  QQQ: "QQQ",
+  GLD: "GLD",
+  SLV: "SLV",
+  VXX: "VXX",
+  UVXY: "UVXY",
+  BTC: "IBIT",
+};
 
 const App: React.FC = () => {
   const showLegacy = true;
@@ -45,6 +53,7 @@ const App: React.FC = () => {
     SLV: null,
     VXX: null,
     UVXY: null,
+    BTC: null,
   });
   const [assetLoadingMap, setAssetLoadingMap] = useState<
     Record<(typeof ASSET_TABS)[number], boolean>
@@ -54,6 +63,7 @@ const App: React.FC = () => {
     SLV: false,
     VXX: false,
     UVXY: false,
+    BTC: false,
   });
   const [assetErrorMap, setAssetErrorMap] = useState<
     Record<(typeof ASSET_TABS)[number], string | null>
@@ -63,6 +73,7 @@ const App: React.FC = () => {
     SLV: null,
     VXX: null,
     UVXY: null,
+    BTC: null,
   });
   const [assetUpdatedMap, setAssetUpdatedMap] = useState<
     Record<(typeof ASSET_TABS)[number], string | null>
@@ -72,6 +83,7 @@ const App: React.FC = () => {
     SLV: null,
     VXX: null,
     UVXY: null,
+    BTC: null,
   });
   const [loadedAssetMap, setLoadedAssetMap] = useState<
     Record<(typeof ASSET_TABS)[number], boolean>
@@ -81,6 +93,7 @@ const App: React.FC = () => {
     SLV: false,
     VXX: false,
     UVXY: false,
+    BTC: false,
   });
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +131,7 @@ const App: React.FC = () => {
     SLV: "weekly",
     VXX: "weekly",
     UVXY: "weekly",
+    BTC: "weekly",
   });
   const [expirationsBySymbol, setExpirationsBySymbol] = useState<
     Record<(typeof ASSET_TABS)[number], string[]>
@@ -127,6 +141,7 @@ const App: React.FC = () => {
     SLV: [],
     VXX: [],
     UVXY: [],
+    BTC: [],
   });
   const [optionsLoadingBySymbol, setOptionsLoadingBySymbol] = useState<
     Record<(typeof ASSET_TABS)[number], boolean>
@@ -136,6 +151,7 @@ const App: React.FC = () => {
     SLV: false,
     VXX: false,
     UVXY: false,
+    BTC: false,
   });
   const [optionsErrorBySymbol, setOptionsErrorBySymbol] = useState<
     Record<(typeof ASSET_TABS)[number], string | null>
@@ -145,6 +161,7 @@ const App: React.FC = () => {
     SLV: null,
     VXX: null,
     UVXY: null,
+    BTC: null,
   });
   const [selectedExpirationBySymbol, setSelectedExpirationBySymbol] = useState<
     Record<(typeof ASSET_TABS)[number], string | null>
@@ -154,6 +171,7 @@ const App: React.FC = () => {
     SLV: null,
     VXX: null,
     UVXY: null,
+    BTC: null,
   });
   const [optionChainBySymbol, setOptionChainBySymbol] = useState<
     Record<(typeof ASSET_TABS)[number], TickerOptionChain | null>
@@ -163,6 +181,7 @@ const App: React.FC = () => {
     SLV: null,
     VXX: null,
     UVXY: null,
+    BTC: null,
   });
   const qqqExpirationType = expirationTypeBySymbol.QQQ;
   const setQqqExpirationType = (type: "daily" | "weekly" | "monthly") =>
@@ -182,6 +201,7 @@ const App: React.FC = () => {
     SLV: null,
     VXX: null,
     UVXY: null,
+    BTC: null,
   });
   const pollingRef = useRef<number | null>(null);
   const tickerPollingRef = useRef<number | null>(null);
@@ -200,13 +220,14 @@ const App: React.FC = () => {
   }, []);
 
   const loadData = useCallback(async (symbol: (typeof ASSET_TABS)[number]) => {
+    const apiSymbol = API_SYMBOL_MAP[symbol];
     setAssetLoadingMap((prev) => ({ ...prev, [symbol]: true }));
     setAssetErrorMap((prev) => ({ ...prev, [symbol]: null }));
     if (symbol === "QQQ") {
       setError(null);
     }
     try {
-      const result = await fetchAnalysisData(symbol);
+      const result = await fetchAnalysisData(apiSymbol);
       setAssetDataMap((prev) => ({ ...prev, [symbol]: result }));
       if (symbol === "QQQ") {
         setData(result);

@@ -362,6 +362,107 @@ app.get("/api/analysis", async (request: Request, response: Response) => {
 
   try {
     const symbol = String(request.query.symbol || "QQQ").trim().toUpperCase();
+    if (symbol === "BTC" || symbol === "BTC-USD") {
+      diagnostics.step = "fetch_quote";
+      addLog(`BTC-USD 시세 데이터 가져오는 중...`);
+      const quote = await withRetry(
+        () => yahooFinance.quote("BTC-USD"),
+        "BTC-USD quote",
+        addLog
+      );
+      const currentPrice = quote.regularMarketPrice || 0;
+      const changePercent = quote.regularMarketChangePercent || 0;
+      const dataTimestamp = quote.regularMarketTime
+        ? new Date(quote.regularMarketTime).toISOString()
+        : new Date().toISOString();
+      diagnostics.currentPrice = currentPrice;
+      addLog(`현재가: $${currentPrice.toFixed(2)}`);
+
+      diagnostics.step = "fetch_chart";
+      const now = dayjs().tz("America/New_York");
+      const chart = await withRetry(
+        () =>
+          yahooFinance.chart("BTC-USD", {
+            period1: now.subtract(60, "day").format("YYYY-MM-DD"),
+            period2: now.format("YYYY-MM-DD"),
+            interval: "1d",
+          }),
+        "BTC-USD chart",
+        addLog
+      );
+
+      const timeSeries: ExpirationAnalysis[] = (chart.quotes || []).map(
+        (q) => {
+          const close = q.close ?? q.adjclose ?? q.open ?? currentPrice;
+          const isoDate = dayjs(q.date).toISOString();
+          return {
+            date: dayjs(q.date).format("YYYY-MM-DD"),
+            isoDate,
+            callResistance: close * 1.01,
+            putSupport: close * 0.99,
+            callWallOI: 0,
+            putWallOI: 0,
+            gammaFlip: close,
+            volTrigger: close,
+            callGex: 0,
+            putGex: 0,
+            totalGex: 0,
+            pcrAll: 0,
+            pcrFiltered: 0,
+            sentiment: 0,
+            profitPotential: 0,
+            expectedPrice: close,
+            priceProbability: {
+              up: 0,
+              down: 0,
+              neutral: 100,
+            },
+            options: [],
+            expectedUpper: close * 1.02,
+            expectedLower: close * 0.98,
+            trapWarning: undefined,
+            oiChange: {
+              callWallOIChange: null,
+              putWallOIChange: null,
+              totalCallOIChange: null,
+              totalPutOIChange: null,
+            },
+            volumeOIRatio: {
+              callWall: 0,
+              putWall: 0,
+              totalCall: 0,
+              totalPut: 0,
+            },
+          };
+        }
+      );
+
+      return response.json({
+        symbol: "BTC",
+        currentPrice,
+        changePercent,
+        dataTimestamp,
+        nasdaqFuturesPrice: null,
+        qqqToNasdaqFuturesRatio: null,
+        warning: "BTC 옵션 데이터는 준비 중입니다.",
+        options: [],
+        totalNetGEX: "0B USD/1%",
+        marketRegime: "Spot",
+        gammaFlip: currentPrice,
+        volTrigger: currentPrice,
+        timeSeries,
+        ibZone: null,
+        callResistance: currentPrice * 1.01,
+        putSupport: currentPrice * 0.99,
+        totalGex: 0,
+        recommendations: [],
+        swingScenarios: [],
+        trendForecast: [],
+        segmentedTrends: [],
+        sentimentRoadmap: [],
+        diagnostics,
+      });
+    }
     diagnostics.step = "fetch_quote";
     addLog(`${symbol} 시세 데이터 가져오는 중...`);
     const quote = await withRetry(
