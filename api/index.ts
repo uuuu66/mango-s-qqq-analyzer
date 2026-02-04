@@ -94,6 +94,19 @@ const isDailyExpiration = (date: Date, now: dayjs.Dayjs) => {
   return expStr === now.format("YYYY-MM-DD");
 };
 
+const getNextDailyExpirations = (
+  expirationDates: Date[],
+  now: dayjs.Dayjs,
+  count: number
+) => {
+  const todayStr = now.format("YYYY-MM-DD");
+  return expirationDates
+    .map((d) => formatExpirationDate(d as Date))
+    .filter((d) => d >= todayStr)
+    .sort((a, b) => (a < b ? -1 : 1))
+    .slice(0, count);
+};
+
 /**
  * 사용자 지정 기간 히스토리 데이터를 기반으로 베타계수 직접 계산
  */
@@ -1894,14 +1907,14 @@ app.get("/api/ticker-options/expirations", async (req: Request, res: Response) =
     );
     const now = dayjs().tz("America/New_York");
     const expirationFilter =
+      type === "monthly" ? isMonthlyExpiration : isWeeklyExpiration;
+    const rawExpirations = (optionChain?.expirationDates || []) as Date[];
+    const expirations =
       type === "daily"
-        ? (d: Date) => isDailyExpiration(d, now)
-        : type === "monthly"
-        ? isMonthlyExpiration
-        : isWeeklyExpiration;
-    const expirations = (optionChain?.expirationDates || [])
-      .filter((d) => expirationFilter(d as Date))
-      .map((d) => formatExpirationDate(d as Date));
+        ? getNextDailyExpirations(rawExpirations, now, 5)
+        : rawExpirations
+            .filter((d) => expirationFilter(d as Date))
+            .map((d) => formatExpirationDate(d as Date));
 
     res.json({
       symbol: symbol.toUpperCase(),
@@ -1934,15 +1947,18 @@ app.get("/api/ticker-options/expiration", async (req: Request, res: Response) =>
     const expirationDates = optionChain?.expirationDates || [];
     const now = dayjs().tz("America/New_York");
     const expirationFilter =
+      type === "monthly" ? isMonthlyExpiration : isWeeklyExpiration;
+    const dailyExpirations =
       type === "daily"
-        ? (d: Date) => isDailyExpiration(d, now)
-        : type === "monthly"
-        ? isMonthlyExpiration
-        : isWeeklyExpiration;
-    const targetDate = expirationDates.find(
-      (d) =>
-        expirationFilter(d as Date) && formatExpirationDate(d as Date) === date
-    );
+        ? getNextDailyExpirations(expirationDates as Date[], now, 5)
+        : [];
+    const targetDate = expirationDates.find((d) => {
+      const formatted = formatExpirationDate(d as Date);
+      if (type === "daily") {
+        return dailyExpirations.includes(formatted) && formatted === date;
+      }
+      return expirationFilter(d as Date) && formatted === date;
+    });
 
     if (!targetDate) {
       return res.status(404).json({ error: "해당 만기일을 찾을 수 없습니다." });
