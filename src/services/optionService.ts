@@ -247,12 +247,13 @@ export const fetchTickerAnalysis = async (
 };
 
 export const fetchAnalysisData = async (
-  symbol: string = "QQQ"
+  symbol: string = "QQQ",
+  range?: "1m" | "3m" | "6m" | "1y"
 ): Promise<AnalysisResult> => {
   try {
-    const response = await fetch(
-      `/api/analysis?symbol=${encodeURIComponent(symbol)}`
-    );
+    const params = new URLSearchParams({ symbol });
+    if (range) params.set("range", range);
+    const response = await fetch(`/api/analysis?${params.toString()}`);
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw {

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   XAxis,
   YAxis,
@@ -40,6 +40,8 @@ interface AssetSectionProps {
     symbol: (typeof ASSET_TABS)[number],
     sortBy: "oi" | "volume"
   ) => void;
+  rangeFilter?: "1m" | "3m" | "6m" | "1y";
+  setRangeFilter?: (range: "1m" | "3m" | "6m" | "1y") => void;
   loadAssetOptionChain: (
     symbol: (typeof ASSET_TABS)[number],
     expiration: string,
@@ -64,9 +66,248 @@ const AssetSection: React.FC<AssetSectionProps> = ({
   setExpirationType,
   setSelectedExpiration,
   setSortBy,
+  rangeFilter,
+  setRangeFilter,
   loadAssetOptionChain,
   onRef,
 }) => {
+  const supportsRangeFilter = useMemo(
+    () => ["GLD", "SLV", "BTC", "VXX"].includes(symbol),
+    [symbol]
+  );
+  const activeRangeFilter = rangeFilter ?? "1m";
+  const isFiltering = supportsRangeFilter && assetLoading;
+
+  const filteredTimeSeries = useMemo(() => {
+    if (!assetData?.timeSeries || !supportsRangeFilter) {
+      return assetData?.timeSeries ?? [];
+    }
+    const now = new Date();
+    const cutoff = new Date(now);
+    if (activeRangeFilter === "1m") {
+      cutoff.setMonth(cutoff.getMonth() - 1);
+    } else if (activeRangeFilter === "3m") {
+      cutoff.setMonth(cutoff.getMonth() - 3);
+    } else if (activeRangeFilter === "6m") {
+      cutoff.setMonth(cutoff.getMonth() - 6);
+    } else {
+      cutoff.setFullYear(cutoff.getFullYear() - 1);
+    }
+    return assetData.timeSeries.filter((item) => {
+      const itemDate = new Date(item.isoDate || item.date);
+      return !Number.isNaN(itemDate.getTime()) && itemDate >= cutoff;
+    });
+  }, [assetData?.timeSeries, activeRangeFilter, supportsRangeFilter]);
+  const chartTimeSeries = useMemo(() => {
+    if (!supportsRangeFilter) return filteredTimeSeries;
+    if (activeRangeFilter === "1y") {
+      const groups = new Map<
+        string,
+        (typeof filteredTimeSeries)[number][]
+      >();
+      filteredTimeSeries.forEach((item) => {
+        const dateObj = new Date(item.isoDate || item.date);
+        if (Number.isNaN(dateObj.getTime())) return;
+        const key = `${dateObj.getFullYear()}-${String(
+          dateObj.getMonth() + 1
+        ).padStart(2, "0")}`;
+        const bucket = groups.get(key);
+        if (bucket) {
+          bucket.push(item);
+        } else {
+          groups.set(key, [item]);
+        }
+      });
+      const numericKeys = [
+        "callResistance",
+        "putSupport",
+        "callWallOI",
+        "putWallOI",
+        "gammaFlip",
+        "volTrigger",
+        "callGex",
+        "putGex",
+        "totalGex",
+        "pcrAll",
+        "pcrFiltered",
+        "sentiment",
+        "profitPotential",
+        "expectedPrice",
+        "expectedUpper",
+        "expectedLower",
+      ] as const;
+      return Array.from(groups.entries())
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+        .map(([key, items]) => {
+          const lastItem = items[items.length - 1];
+          const aggregated = { ...lastItem, date: key } as typeof lastItem &
+            Record<string, number>;
+          numericKeys.forEach((field) => {
+            let sum = 0;
+            let count = 0;
+            items.forEach((it) => {
+              const value = (
+                it as unknown as Record<string, number | null | undefined>
+              )[field];
+              if (typeof value === "number" && !Number.isNaN(value)) {
+                sum += value;
+                count += 1;
+              }
+            });
+            if (count > 0) {
+              (aggregated as Record<string, number>)[field] = sum / count;
+            }
+          });
+          if (lastItem.priceProbability) {
+            const probs = items
+              .map((it) => it.priceProbability)
+              .filter(
+                (p): p is NonNullable<typeof lastItem.priceProbability> =>
+                  Boolean(p)
+              );
+            if (probs.length) {
+              const totals = probs.reduce(
+                (acc, cur) => ({
+                  up: acc.up + (cur.up || 0),
+                  down: acc.down + (cur.down || 0),
+                  neutral: acc.neutral + (cur.neutral || 0),
+                }),
+                { up: 0, down: 0, neutral: 0 }
+              );
+              aggregated.priceProbability = {
+                up: Math.round(totals.up / probs.length),
+                down: Math.round(totals.down / probs.length),
+                neutral: Math.round(totals.neutral / probs.length),
+              };
+            }
+          }
+          return aggregated;
+        });
+    }
+    const targetCount = 15;
+    if (filteredTimeSeries.length <= targetCount) {
+      return filteredTimeSeries;
+    }
+    const getSeriesValue = (item: (typeof filteredTimeSeries)[number]) => {
+      if (typeof item.expectedPrice === "number") return item.expectedPrice;
+      if (typeof item.gammaFlip === "number") return item.gammaFlip;
+      if (typeof item.volTrigger === "number") return item.volTrigger;
+      if (
+        typeof item.callResistance === "number" &&
+        typeof item.putSupport === "number"
+      ) {
+        return (item.callResistance + item.putSupport) / 2;
+      }
+      return 0;
+    };
+    type ChartPoint = { x: number; y: number; index: number };
+    const points: ChartPoint[] = filteredTimeSeries.map((item, idx) => ({
+      x: new Date(item.isoDate || item.date).getTime(),
+      y: getSeriesValue(item),
+      index: idx,
+    }));
+    const pointLineDistance = (
+      point: ChartPoint,
+      lineStart: ChartPoint,
+      lineEnd: ChartPoint
+    ) => {
+      const dx = lineEnd.x - lineStart.x;
+      const dy = lineEnd.y - lineStart.y;
+      if (dx === 0 && dy === 0) {
+        const px = point.x - lineStart.x;
+        const py = point.y - lineStart.y;
+        return Math.hypot(px, py);
+      }
+      const t =
+        ((point.x - lineStart.x) * dx + (point.y - lineStart.y) * dy) /
+        (dx * dx + dy * dy);
+      const projX = lineStart.x + t * dx;
+      const projY = lineStart.y + t * dy;
+      return Math.hypot(point.x - projX, point.y - projY);
+    };
+    const rdp = (pts: ChartPoint[], epsilon: number): ChartPoint[] => {
+      if (pts.length < 3) return pts;
+      let maxDist = 0;
+      let maxIndex = 0;
+      const start = pts[0];
+      const end = pts[pts.length - 1];
+      for (let i = 1; i < pts.length - 1; i += 1) {
+        const dist = pointLineDistance(pts[i], start, end);
+        if (dist > maxDist) {
+          maxDist = dist;
+          maxIndex = i;
+        }
+      }
+      if (maxDist > epsilon) {
+        const left: ChartPoint[] = rdp(pts.slice(0, maxIndex + 1), epsilon);
+        const right: ChartPoint[] = rdp(pts.slice(maxIndex), epsilon);
+        return left.slice(0, -1).concat(right);
+      }
+      return [start, end];
+    };
+    const yValues = points.map((p) => p.y);
+    const minY = Math.min(...yValues);
+    const maxY = Math.max(...yValues);
+    const rangeY = Math.max(1e-6, maxY - minY);
+    const rdpTarget = Math.max(6, targetCount - 5);
+    let low = 0;
+    let high = rangeY;
+    for (let i = 0; i < 24; i += 1) {
+      const mid = (low + high) / 2;
+      const count = rdp(points, mid).length;
+      if (count > rdpTarget) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+    const rdpPoints: ChartPoint[] = rdp(points, high);
+    const selected = new Set<number>(rdpPoints.map((p) => p.index));
+    const extremes = points
+      .slice(1, -1)
+      .map((_, i) => {
+        const prev = points[i];
+        const curr = points[i + 1];
+        const next = points[i + 2];
+        const isPeak = curr.y > prev.y && curr.y > next.y;
+        const isTrough = curr.y < prev.y && curr.y < next.y;
+        if (!isPeak && !isTrough) return null;
+        const prominence = Math.min(
+          Math.abs(curr.y - prev.y),
+          Math.abs(curr.y - next.y)
+        );
+        return { index: curr.index, prominence };
+      })
+      .filter((v): v is { index: number; prominence: number } => v !== null)
+      .sort((a, b) => b.prominence - a.prominence);
+    for (const extreme of extremes) {
+      if (selected.size >= targetCount) break;
+      selected.add(extreme.index);
+    }
+    if (selected.size > targetCount) {
+      const scores = new Map<number, number>();
+      extremes.forEach((e) => scores.set(e.index, e.prominence));
+      const firstIndex = 0;
+      const lastIndex = points.length - 1;
+      const removable = Array.from(selected).filter(
+        (idx) => idx !== firstIndex && idx !== lastIndex
+      );
+      removable.sort((a, b) => {
+        const scoreA = scores.get(a) ?? 0;
+        const scoreB = scores.get(b) ?? 0;
+        return scoreA - scoreB;
+      });
+      let removeCount = selected.size - targetCount;
+      for (const idx of removable) {
+        if (removeCount <= 0) break;
+        selected.delete(idx);
+        removeCount -= 1;
+      }
+    }
+    const sortedIndices = Array.from(selected).sort((a, b) => a - b);
+    return sortedIndices.map((idx) => filteredTimeSeries[idx]);
+  }, [filteredTimeSeries, supportsRangeFilter]);
+
   const getWallByMetric = (
     rows: TickerOptionChain["calls"],
     metric: "openInterest" | "volume"
@@ -127,8 +368,29 @@ const AssetSection: React.FC<AssetSectionProps> = ({
             </p>
           )}
         </div>
-        {assetLoading && (
-          <span className="text-xs font-bold text-slate-400">로딩 중...</span>
+        {supportsRangeFilter && (
+          <div className="flex items-center gap-2">
+            {(["1m", "3m", "6m", "1y"] as const).map((range) => (
+              <button
+                key={range}
+                type="button"
+                onClick={() => setRangeFilter?.(range)}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-black border transition-colors ${
+                  activeRangeFilter === range
+                    ? "selected-nav-button text-white border-slate-900"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
+                }`}
+              >
+                {range === "1m"
+                  ? "1개월"
+                  : range === "3m"
+                  ? "3개월"
+                  : range === "6m"
+                  ? "6개월"
+                  : "1년"}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
@@ -145,14 +407,14 @@ const AssetSection: React.FC<AssetSectionProps> = ({
           <section className="border rounded-2xl shadow-sm bg-white overflow-hidden">
             <div className="p-4 md:p-6 border-b">
               <h3 className="text-lg font-bold text-slate-800">
-                만기일별 지지/저항 및 시장 방어력
+                {supportsRangeFilter ? "일별" : "만기일별"} 지지/저항 및 시장 방어력
               </h3>
             </div>
-            <div className="overflow-x-auto pb-4 custom-scrollbar">
+            <div className="overflow-x-auto pb-4 custom-scrollbar relative">
               <div className="h-[400px] min-w-[900px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart
-                    data={assetData.timeSeries}
+                    data={chartTimeSeries}
                     margin={{ top: 20, right: 40, left: 10, bottom: 20 }}
                   >
                     <CartesianGrid
@@ -274,20 +536,23 @@ const AssetSection: React.FC<AssetSectionProps> = ({
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
+              {supportsRangeFilter && isFiltering && (
+                <div className="absolute inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-[1px] rounded-2xl" />
+              )}
             </div>
           </section>
 
           <section className="p-4 md:p-6 border rounded-2xl shadow-sm bg-white overflow-hidden">
             <div className="mb-6 border-b pb-4">
               <h3 className="text-lg font-bold text-slate-800">
-                만기일별 시장 심리 추세
+                {supportsRangeFilter ? "일별" : "만기일별"} 시장 심리 추세
               </h3>
             </div>
-            <div className="overflow-x-auto pb-4 custom-scrollbar">
+            <div className="overflow-x-auto pb-4 custom-scrollbar relative">
               <div className="h-[250px] min-w-[900px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart
-                    data={assetData.timeSeries}
+                    data={chartTimeSeries}
                     margin={{ top: 10, right: 40, left: 10, bottom: 10 }}
                   >
                     <CartesianGrid
@@ -335,6 +600,9 @@ const AssetSection: React.FC<AssetSectionProps> = ({
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
+              {supportsRangeFilter && isFiltering && (
+                <div className="absolute inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-[1px] rounded-2xl" />
+              )}
             </div>
           </section>
 

@@ -31,7 +31,6 @@ const App: React.FC = () => {
     GLD: null,
     SLV: null,
     VXX: null,
-    UVXY: null,
     BTC: null,
   });
   const [assetLoadingMap, setAssetLoadingMap] = useState<
@@ -41,7 +40,6 @@ const App: React.FC = () => {
     GLD: false,
     SLV: false,
     VXX: false,
-    UVXY: false,
     BTC: false,
   });
   const [assetErrorMap, setAssetErrorMap] = useState<
@@ -51,7 +49,6 @@ const App: React.FC = () => {
     GLD: null,
     SLV: null,
     VXX: null,
-    UVXY: null,
     BTC: null,
   });
   const [assetUpdatedMap, setAssetUpdatedMap] = useState<
@@ -61,7 +58,6 @@ const App: React.FC = () => {
     GLD: null,
     SLV: null,
     VXX: null,
-    UVXY: null,
     BTC: null,
   });
   const [loadedAssetMap] = useState<
@@ -71,8 +67,16 @@ const App: React.FC = () => {
     GLD: true,
     SLV: true,
     VXX: true,
-    UVXY: true,
     BTC: true,
+  });
+  const [rangeFilterBySymbol, setRangeFilterBySymbol] = useState<
+    Record<(typeof ASSET_TABS)[number], "1m" | "3m" | "6m" | "1y">
+  >({
+    QQQ: "1m",
+    GLD: "1m",
+    SLV: "1m",
+    VXX: "1m",
+    BTC: "1m",
   });
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +113,6 @@ const App: React.FC = () => {
     GLD: "weekly",
     SLV: "weekly",
     VXX: "weekly",
-    UVXY: "weekly",
     BTC: "weekly",
   });
   const [expirationsBySymbol, setExpirationsBySymbol] = useState<
@@ -119,7 +122,6 @@ const App: React.FC = () => {
     GLD: [],
     SLV: [],
     VXX: [],
-    UVXY: [],
     BTC: [],
   });
   const [optionsLoadingBySymbol, setOptionsLoadingBySymbol] = useState<
@@ -129,7 +131,6 @@ const App: React.FC = () => {
     GLD: false,
     SLV: false,
     VXX: false,
-    UVXY: false,
     BTC: false,
   });
   const [optionsErrorBySymbol, setOptionsErrorBySymbol] = useState<
@@ -139,7 +140,6 @@ const App: React.FC = () => {
     GLD: null,
     SLV: null,
     VXX: null,
-    UVXY: null,
     BTC: null,
   });
   const [selectedExpirationBySymbol, setSelectedExpirationBySymbol] = useState<
@@ -149,7 +149,6 @@ const App: React.FC = () => {
     GLD: null,
     SLV: null,
     VXX: null,
-    UVXY: null,
     BTC: null,
   });
   const [optionChainBySymbol, setOptionChainBySymbol] = useState<
@@ -159,7 +158,6 @@ const App: React.FC = () => {
     GLD: null,
     SLV: null,
     VXX: null,
-    UVXY: null,
     BTC: null,
   });
   const [optionsSortBy, setOptionsSortBy] = useState<
@@ -169,7 +167,6 @@ const App: React.FC = () => {
     GLD: "oi",
     SLV: "oi",
     VXX: "oi",
-    UVXY: "oi",
     BTC: "oi",
   });
   const assetSectionRefs = useRef<
@@ -179,7 +176,6 @@ const App: React.FC = () => {
     GLD: null,
     SLV: null,
     VXX: null,
-    UVXY: null,
     BTC: null,
   });
   const pollingRef = useRef<number | null>(null);
@@ -193,15 +189,19 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const loadData = useCallback(async (symbol: (typeof ASSET_TABS)[number]) => {
+  const loadData = useCallback(async (
+    symbol: (typeof ASSET_TABS)[number],
+    rangeOverride?: "1m" | "3m" | "6m" | "1y"
+  ) => {
     const apiSymbol = API_SYMBOL_MAP[symbol];
+    const range = rangeOverride ?? rangeFilterBySymbol[symbol];
     setAssetLoadingMap((prev) => ({ ...prev, [symbol]: true }));
     setAssetErrorMap((prev) => ({ ...prev, [symbol]: null }));
     if (symbol === "QQQ") {
       setError(null);
     }
     try {
-      const result = await fetchAnalysisData(apiSymbol);
+      const result = await fetchAnalysisData(apiSymbol, range);
       setAssetDataMap((prev) => ({ ...prev, [symbol]: result }));
       if (symbol === "QQQ") {
         setData(result);
@@ -255,7 +255,7 @@ const App: React.FC = () => {
     } finally {
       setAssetLoadingMap((prev) => ({ ...prev, [symbol]: false }));
     }
-  }, []);
+  }, [rangeFilterBySymbol]);
 
   const isMarketOpenNY = useCallback(() => {
     const now = new Date();
@@ -917,6 +917,11 @@ const App: React.FC = () => {
           optionsLoading={optionsLoadingBySymbol["QQQ"]}
           optionsError={optionsErrorBySymbol["QQQ"]}
           sortBy={optionsSortBy["QQQ"]}
+          rangeFilter={rangeFilterBySymbol["QQQ"]}
+          setRangeFilter={(range) => {
+            setRangeFilterBySymbol((prev) => ({ ...prev, QQQ: range }));
+            loadData("QQQ", range);
+          }}
           setExpirationType={(symbol, type) =>
             setExpirationTypeBySymbol((prev) => ({ ...prev, [symbol]: type }))
           }
@@ -975,6 +980,11 @@ const App: React.FC = () => {
             optionsLoading={optionsLoadingBySymbol[symbol]}
             optionsError={optionsErrorBySymbol[symbol]}
             sortBy={optionsSortBy[symbol]}
+            rangeFilter={rangeFilterBySymbol[symbol]}
+            setRangeFilter={(range) => {
+              setRangeFilterBySymbol((prev) => ({ ...prev, [symbol]: range }));
+              loadData(symbol, range);
+            }}
             setExpirationType={(symbol, type) =>
               setExpirationTypeBySymbol((prev) => ({ ...prev, [symbol]: type }))
             }
