@@ -78,26 +78,6 @@ const TickerSearchSection: React.FC<TickerSearchSectionProps> = ({
         selectedTickerRange.expectedResistance) /
         2);
 
-  const getVolumeWalls = (chain: TickerOptionChain | null) => {
-    if (!chain) {
-      return { callVolumeWall: null, putVolumeWall: null };
-    }
-    const callVolumeWall =
-      chain.calls.length > 0
-        ? chain.calls.reduce((best, current) =>
-            current.volume > best.volume ? current : best
-          ).strike
-        : null;
-    const putVolumeWall =
-      chain.puts.length > 0
-        ? chain.puts.reduce((best, current) =>
-            current.volume > best.volume ? current : best
-          ).strike
-        : null;
-    return { callVolumeWall, putVolumeWall };
-  };
-
-  const { callVolumeWall, putVolumeWall } = getVolumeWalls(tickerOptionChain);
 
   return (
     <section className="mt-12 p-6 md:p-8 border border-slate-200 rounded-3xl bg-slate-50/50 shadow-sm">
@@ -666,6 +646,7 @@ const TickerSearchSection: React.FC<TickerSearchSectionProps> = ({
               )}
 
 
+            {/*
             <div className="mt-8 pt-6 border-t border-slate-100">
               <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <Zap className="w-3.5 h-3.5 text-yellow-500" />{" "}
@@ -766,6 +747,7 @@ const TickerSearchSection: React.FC<TickerSearchSectionProps> = ({
                 예상 지지/저항 기준 단일 가격 타점으로 표시됩니다.
               </p>
             </div>
+            */}
 
             <div className="mt-8 pt-6 border-t border-slate-100">
               <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">

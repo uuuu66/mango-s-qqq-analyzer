@@ -10,7 +10,7 @@ import {
   Bar,
   ReferenceLine,
 } from "recharts";
-import { TrendingUp, Info, Zap } from "lucide-react";
+import { TrendingUp, Info } from "lucide-react";
 import type { AnalysisResult, TickerOptionChain } from "../services/optionService";
 
 interface QQQExtendedAnalysisProps {
@@ -24,26 +24,6 @@ const QQQExtendedAnalysis: React.FC<QQQExtendedAnalysisProps> = ({
 }) => {
   if (!data) return null;
 
-  const getVolumeWalls = (chain: TickerOptionChain | null) => {
-    if (!chain) {
-      return { callVolumeWall: null, putVolumeWall: null };
-    }
-    const callVolumeWall =
-      chain.calls.length > 0
-        ? chain.calls.reduce((best, current) =>
-            current.volume > best.volume ? current : best
-          ).strike
-        : null;
-    const putVolumeWall =
-      chain.puts.length > 0
-        ? chain.puts.reduce((best, current) =>
-            current.volume > best.volume ? current : best
-          ).strike
-        : null;
-    return { callVolumeWall, putVolumeWall };
-  };
-
-  const { callVolumeWall, putVolumeWall } = getVolumeWalls(optionChain);
   const currentPrice = data.currentPrice ?? null;
   const maxPain = optionChain?.summary?.maxPain ?? null;
   const getNearSpotWall = (
@@ -118,6 +98,21 @@ const QQQExtendedAnalysis: React.FC<QQQExtendedAnalysisProps> = ({
   const weeklySellLabel =
     callNearSpot?.label ??
     (weeklyResistance ? "7D Resistance (P80)" : "Max Pain");
+  const todayProb = data.timeSeries?.[0]?.priceProbability ?? null;
+  const predictedTrend =
+    todayProb && typeof todayProb.up === "number" && typeof todayProb.down === "number"
+      ? todayProb.up > todayProb.down && todayProb.up >= (todayProb.neutral ?? 0)
+        ? "상승"
+        : todayProb.down > todayProb.up && todayProb.down >= (todayProb.neutral ?? 0)
+        ? "하락"
+        : "횡보"
+      : typeof data.changePercent === "number"
+      ? data.changePercent > 0
+        ? "상승"
+        : data.changePercent < 0
+        ? "하락"
+        : "횡보"
+      : data.trendForecast?.[0]?.direction ?? null;
 
   return (
     <div className="space-y-8">
@@ -129,6 +124,14 @@ const QQQExtendedAnalysis: React.FC<QQQExtendedAnalysisProps> = ({
           </h2>
           <p className="text-[11px] text-slate-500 mt-1">
             7일 내 만기 중 현재가 근처 Wall을 우선하고, 없으면 7일 지지/저항 분위수(P20/P80) 또는 Max Pain을 사용합니다.
+          </p>
+          <p className="text-[11px] text-slate-600 mt-2 font-semibold">
+            오늘 예측: {predictedTrend ?? "-"}
+            {todayProb && (
+              <span className="ml-2 text-slate-500 font-medium">
+                (상승 {todayProb.up ?? 0} / 하락 {todayProb.down ?? 0} / 횡보 {todayProb.neutral ?? 0})
+              </span>
+            )}
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -454,6 +457,7 @@ const QQQExtendedAnalysis: React.FC<QQQExtendedAnalysisProps> = ({
         </div>
       </div>
 
+      {/*
       <div className="grid  gap-6 mt-12">
         <div className="bg-black p-6 rounded-2xl border border-red-500/50">
           <h3 className="text-lg font-bold text-emerald-400 mb-6 flex items-center gap-2">
@@ -537,6 +541,7 @@ const QQQExtendedAnalysis: React.FC<QQQExtendedAnalysisProps> = ({
 
       
       </div>
+      */}
     </div>
   );
 };
