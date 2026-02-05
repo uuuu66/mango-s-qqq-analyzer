@@ -44,9 +44,123 @@ const QQQExtendedAnalysis: React.FC<QQQExtendedAnalysisProps> = ({
   };
 
   const { callVolumeWall, putVolumeWall } = getVolumeWalls(optionChain);
+  const currentPrice = data.currentPrice ?? null;
+  const maxPain = optionChain?.summary?.maxPain ?? null;
+  const getNearSpotWall = (
+    rows: TickerOptionChain["calls"] | TickerOptionChain["puts"],
+    side: "call" | "put"
+  ) => {
+    if (!currentPrice || !rows || rows.length === 0) return null;
+    const filtered =
+      side === "call"
+        ? rows.filter((row) => row.strike >= currentPrice)
+        : rows.filter((row) => row.strike <= currentPrice);
+    if (filtered.length === 0) return null;
+    const bestByVolume = filtered.reduce((best, current) =>
+      current.volume > best.volume ? current : best
+    );
+    if (bestByVolume.volume > 0) {
+      return { strike: bestByVolume.strike, label: "Volume Wall" as const };
+    }
+    const bestByOi = filtered.reduce((best, current) =>
+      current.openInterest > best.openInterest ? current : best
+    );
+    return {
+      strike: bestByOi.strike,
+      label: "OI Wall" as const,
+    };
+  };
+  const putNearSpot = optionChain
+    ? getNearSpotWall(optionChain.puts, "put")
+    : null;
+  const callNearSpot = optionChain
+    ? getNearSpotWall(optionChain.calls, "call")
+    : null;
+  const now = new Date();
+  const weekEnd = new Date(now);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const weeklyWindow = (data.timeSeries ?? []).filter((item) => {
+    const itemDate = new Date(item.isoDate || item.date);
+    if (Number.isNaN(itemDate.getTime())) return false;
+    return itemDate >= now && itemDate <= weekEnd;
+  });
+  const getPercentile = (values: number[], p: number) => {
+    if (values.length === 0) return null;
+    const sorted = [...values].sort((a, b) => a - b);
+    const idx = Math.min(
+      sorted.length - 1,
+      Math.max(0, Math.floor((sorted.length - 1) * p))
+    );
+    return sorted[idx];
+  };
+  const weeklySupport =
+    weeklyWindow.length > 0
+      ? getPercentile(
+          weeklyWindow
+            .map((item) => item.putSupport)
+            .filter((value): value is number => typeof value === "number"),
+          0.2
+        )
+      : null;
+  const weeklyResistance =
+    weeklyWindow.length > 0
+      ? getPercentile(
+          weeklyWindow
+            .map((item) => item.callResistance)
+            .filter((value): value is number => typeof value === "number"),
+          0.8
+        )
+      : null;
+  const weeklyBuy = putNearSpot?.strike ?? weeklySupport ?? maxPain ?? null;
+  const weeklySell = callNearSpot?.strike ?? weeklyResistance ?? maxPain ?? null;
+  const weeklyBuyLabel =
+    putNearSpot?.label ?? (weeklySupport ? "7D Support (P20)" : "Max Pain");
+  const weeklySellLabel =
+    callNearSpot?.label ??
+    (weeklyResistance ? "7D Resistance (P80)" : "Max Pain");
 
   return (
     <div className="space-y-8">
+      {/* QQQ Option Buy/Sell Guide */}
+      <section className="p-4 md:p-6 border rounded-2xl shadow-sm bg-white">
+        <div className="mb-4 border-b pb-3">
+          <h2 className="text-lg font-bold text-slate-800">
+            QQQ 옵션 기반 매수/매도 기준
+          </h2>
+          <p className="text-[11px] text-slate-500 mt-1">
+            7일 내 만기 중 현재가 근처 Wall을 우선하고, 없으면 7일 지지/저항 분위수(P20/P80) 또는 Max Pain을 사용합니다.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50">
+            <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">
+              매수 기준 ({weeklyBuyLabel})
+            </div>
+            <div className="text-2xl font-black text-emerald-700 mt-1">
+              {weeklyBuy !== null ? `$${weeklyBuy.toFixed(2)}` : "-"}
+            </div>
+            <p className="text-[10px] text-emerald-700/70 mt-2">
+              현재가 근처 풋 Wall 우선, 없으면 7일 지지선 분위수 기준입니다.
+            </p>
+          </div>
+          <div className="p-4 rounded-2xl border border-rose-200 bg-rose-50">
+            <div className="text-[10px] font-bold text-rose-700 uppercase tracking-widest">
+              매도 기준 ({weeklySellLabel})
+            </div>
+            <div className="text-2xl font-black text-rose-700 mt-1">
+              {weeklySell !== null ? `$${weeklySell.toFixed(2)}` : "-"}
+            </div>
+            <p className="text-[10px] text-rose-700/70 mt-2">
+              현재가 근처 콜 Wall 우선, 없으면 7일 저항선 분위수 기준입니다.
+            </p>
+          </div>
+        </div>
+        {maxPain !== null && (
+          <p className="text-[10px] text-slate-400 mt-3 leading-relaxed">
+            참고: Max Pain ${maxPain.toFixed(2)}
+          </p>
+        )}
+      </section>
       {/* GEX Imbalance Section */}
       <section className="p-4 md:p-6 border rounded-2xl shadow-sm bg-white overflow-hidden">
         <div className="mb-6 border-b pb-4">
